@@ -14,9 +14,10 @@ export const hlsConfigProxiedStream: Partial<HlsConfig> = {
   capLevelToPlayerSize: true,
   /** 多數 master 清單為頻寬升序，0 ＝最低碼率起播、再慢慢升 */
   startLevel: 0,
-  maxBufferLength: 120,
-  maxMaxBufferLength: 600,
-  maxBufferSize: 100 * 1000 * 1000,
+  /** 基底值；實際會在 MANIFEST_PARSED 後依最高碼率覆寫（見 hlsBitrateBuffer） */
+  maxBufferLength: 140,
+  maxMaxBufferLength: 700,
+  maxBufferSize: 120 * 1000 * 1000,
   backBufferLength: 120,
   startFragPrefetch: true,
   maxFragLookUpTolerance: 0.5,

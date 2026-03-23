@@ -13,6 +13,7 @@ import { pollDownloadUntilTerminal, type DownloadQueueInfo, type JobStatusRespon
 import { clearActiveDownload, readActiveDownload, saveActiveDownload } from "../lib/downloadSession";
 import FavoriteHeart from "../components/FavoriteHeart";
 import SiteHeader from "../components/SiteHeader";
+import { applyBitrateAwareBufferTargets } from "../lib/hlsBitrateBuffer";
 import { hlsConfigProxiedStream } from "../lib/hlsPlayerConfig";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
@@ -212,7 +213,14 @@ export default function VideoPage() {
         void el.play().catch(() => {});
       };
       tryPlay();
-      hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      const onManifestParsed = () => {
+        applyBitrateAwareBufferTargets(hls);
+        tryPlay();
+      };
+      hls.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+      hls.on(Hls.Events.LEVELS_UPDATED, () => {
+        applyBitrateAwareBufferTargets(hls);
+      });
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
           hls.startLoad();
