@@ -55,8 +55,16 @@ import {
 } from "./lib/thumbnail-cache.js";
 import { getDownloadWorkerPoolStats } from "./lib/python-download-worker-pool.js";
 import { getCachedVideoPageParsed, setCachedVideoPageParsed } from "./lib/video-detail-cache.js";
+import { createStreamSegmentCache } from "./lib/stream-segment-cache.js";
 import { upstreamFetch } from "./lib/upstream-fetch.js";
 import { signStreamToken, verifyStreamToken } from "./lib/stream-token.js";
+
+const segmentCache = createStreamSegmentCache({
+  enabled: config.streamSegmentCacheEnabled,
+  maxEntries: config.streamSegmentCacheMaxEntries,
+  maxTotalBytes: config.streamSegmentCacheMaxTotalBytes,
+  maxSegmentBytes: config.streamSegmentCacheMaxSegmentBytes,
+});
 
 const execFileAsync = promisify(execFile);
 
@@ -122,6 +130,7 @@ app.get("/api/health", async () => {
     ...getDownloadWorkerPoolStats(),
     ...getThumbnailCacheStats(),
     ...getVideoPageFetchQueueStats(),
+    ...segmentCache.getStats(),
   };
 });
 
@@ -599,6 +608,16 @@ app.get("/api/stream", async (request, reply) => {
     return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
   }
 
+  if (payload.typ === "segment") {
+    const hit = segmentCache.get(payload.target);
+    if (hit) {
+      reply.header("Content-Type", "application/octet-stream");
+      reply.header("Cache-Control", "public, max-age=60");
+      reply.header("Content-Length", String(hit.length));
+      return reply.send(hit);
+    }
+  }
+
   let res: Awaited<ReturnType<typeof upstreamFetch>>;
   try {
     res = await upstreamFetch(payload.target, {
@@ -620,14 +639,21 @@ app.get("/api/stream", async (request, reply) => {
     reply.header("Content-Type", ct || "application/octet-stream");
     reply.header("Cache-Control", "public, max-age=60");
     /**
-     * 未命中快取時一律串流轉發，避免「整顆分片從上游收完才吐給瀏覽器」拉長每段 TTFB、造成卡頓。
-     * （先前在有小 Content-Length 時會先 buffer 再入庫＋回應，首看者體感很差。）
-     * 快取僅在命中路徑使用；若要再擴充「邊播邊寫快取」需 tee stream，另議。
+     * 未命中：tee 一路即時轉發（低 TTFB）、一路背景寫入 LRU，下次命中整段回傳。
      */
     const len = res.headers.get("content-length");
     if (len) reply.header("Content-Length", len);
     if (res.body) {
-      return reply.send(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]));
+      const [toClient, toCache] = res.body.tee();
+      segmentCache.drainTeeBranchToCache(
+        toCache as import("node:stream/web").ReadableStream,
+        payload.target
+      );
+      return reply.send(
+        Readable.fromWeb(toClient as Parameters<typeof Readable.fromWeb>[0], {
+          highWaterMark: 256 * 1024,
+        })
+      );
     }
     return reply.send(Buffer.alloc(0));
   }

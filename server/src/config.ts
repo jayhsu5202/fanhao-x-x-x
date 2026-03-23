@@ -100,6 +100,43 @@ export const config = {
   videoPageFetchConcurrency: parseConcurrencyEnv(process.env.VIDEO_PAGE_FETCH_CONCURRENCY, 28, 1),
   /** undici 對「同一 origin」可開的併發連線（m3u8、縮圖、HTML 等共用） */
   upstreamConnectionsPerOrigin: parseConcurrencyEnv(process.env.UPSTREAM_CONNECTIONS_PER_ORIGIN, 192, 1),
+  /**
+   * 對上游 CDN 啟用 HTTP/2（同 origin 多路徑 multiplex，減少 TLS／連線開銷）。
+   * 若遇相容問題可設 `STREAM_UPSTREAM_HTTP2=0`。
+   */
+  upstreamHttp2Enabled: (() => {
+    const t = (process.env.STREAM_UPSTREAM_HTTP2 ?? "1").trim().toLowerCase();
+    if (t === "0" || t === "false" || t === "no" || t === "off") return false;
+    return true;
+  })(),
+  /** undici keep-alive（毫秒）；拉長可減少長時間播放時重連 */
+  upstreamKeepAliveTimeoutMs: Math.max(
+    5_000,
+    Number.parseInt(process.env.UPSTREAM_KEEPALIVE_TIMEOUT_MS || "120000", 10) || 120_000
+  ),
+  /**
+   * HLS 分片記憶體 LRU：邊播邊用 tee 寫入，命中時整段回傳（快進／重播／多 viewer 受益）。
+   * `STREAM_SEGMENT_CACHE=0` 關閉。
+   */
+  streamSegmentCacheEnabled: (() => {
+    const t = (process.env.STREAM_SEGMENT_CACHE ?? "1").trim().toLowerCase();
+    if (t === "0" || t === "false" || t === "no" || t === "off") return false;
+    return true;
+  })(),
+  streamSegmentCacheMaxEntries: Math.max(
+    16,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_ENTRIES || "384", 10) || 384
+  ),
+  streamSegmentCacheMaxTotalBytes: Math.max(
+    8 * 1024 * 1024,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_TOTAL_BYTES || `${256 * 1024 * 1024}`, 10) ||
+      256 * 1024 * 1024
+  ),
+  streamSegmentCacheMaxSegmentBytes: Math.max(
+    256 * 1024,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_SEGMENT_BYTES || `${12 * 1024 * 1024}`, 10) ||
+      12 * 1024 * 1024
+  ),
   /** 解析出的封面 CDN URL 在記憶體中的 TTL（毫秒），減少重複打 MissAV 頁。預設 15 分鐘。 */
   thumbParseCacheTtlMs: Math.max(
     60_000,

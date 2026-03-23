@@ -2,8 +2,10 @@ import { Agent, fetch as undiciFetch } from "undici";
 import { config } from "../config.js";
 
 const upstreamAgent = new Agent({
-  allowH2: false,
+  allowH2: config.upstreamHttp2Enabled,
   connections: config.upstreamConnectionsPerOrigin,
+  keepAliveTimeout: config.upstreamKeepAliveTimeoutMs,
+  keepAliveMaxTimeout: config.upstreamKeepAliveTimeoutMs,
 });
 
 export function upstreamFetch(
