@@ -88,10 +88,16 @@ export const config = {
   workerScript: path.resolve(__dirname, "..", "..", "scripts", "missav_worker.py"),
   /** 同時執行的 Python 下載工作數（每個工作一個子程序）；見 `parseConcurrencyEnv` */
   downloadQueueConcurrency: parseConcurrencyEnv(process.env.DOWNLOAD_QUEUE_CONCURRENCY, 6, 1),
-  /** 同時抓取 MissAV 影片頁 HTML 以解析縮圖的併發 */
-  thumbHtmlFetchConcurrency: parseConcurrencyEnv(process.env.THUMB_HTML_FETCH_CONCURRENCY, 24, 1),
-  /** 詳情／預覽等 `fetchVideoPage` 全域併發（與縮圖佇列分開） */
-  videoPageFetchConcurrency: parseConcurrencyEnv(process.env.VIDEO_PAGE_FETCH_CONCURRENCY, 20, 1),
+  /**
+   * 長駐 `missav_html_worker.py` 程序數（Python 抓取 MissAV HTML 時）。
+   * 已移除縮圖專用第二層佇列，HTML 總併發由 `VIDEO_PAGE_FETCH_CONCURRENCY` 與本池共同上限。
+   */
+  pythonHtmlWorkerCount: Math.max(
+    1,
+    Math.min(32, Number.parseInt(process.env.PYTHON_HTML_WORKERS || "3", 10) || 3)
+  ),
+  /** 詳情／預覽／縮圖解析等 `fetchVideoPage` 全域併發（單一佇列，避免雙重排隊） */
+  videoPageFetchConcurrency: parseConcurrencyEnv(process.env.VIDEO_PAGE_FETCH_CONCURRENCY, 28, 1),
   /** undici 對「同一 origin」可開的併發連線（m3u8、縮圖、HTML 等共用） */
   upstreamConnectionsPerOrigin: parseConcurrencyEnv(process.env.UPSTREAM_CONNECTIONS_PER_ORIGIN, 192, 1),
   /** 解析出的封面 CDN URL 在記憶體中的 TTL（毫秒），減少重複打 MissAV 頁。預設 15 分鐘。 */
@@ -103,6 +109,56 @@ export const config = {
   thumbParseCacheMaxEntries: Math.max(
     64,
     Number.parseInt(process.env.THUMB_PARSE_CACHE_MAX_ENTRIES || "2048", 10) || 2048
+  ),
+  /**
+   * `/api/thumbnail/:slug` 圖片位元組記憶體快取。`THUMB_IMAGE_CACHE=0`／`false`／`off` 關閉。
+   */
+  thumbImageCacheEnabled: (() => {
+    const t = (process.env.THUMB_IMAGE_CACHE ?? "").trim().toLowerCase();
+    if (t === "0" || t === "false" || t === "no" || t === "off") return false;
+    return true;
+  })(),
+  thumbImageCacheTtlMs: Math.max(
+    60_000,
+    Number.parseInt(process.env.THUMB_IMAGE_CACHE_TTL_MS || `${15 * 60_000}`, 10) || 15 * 60_000
+  ),
+  thumbImageCacheMaxEntries: Math.max(
+    64,
+    Number.parseInt(process.env.THUMB_IMAGE_CACHE_MAX_ENTRIES || "1024", 10) || 1024
+  ),
+  /**
+   * `/api/videos/:slug` 解析結果（含 m3u8 等）記憶體 TTL，減少重複抓 MissAV 影片頁。預設 10 分鐘。
+   */
+  videoPageParseCacheTtlMs: Math.max(
+    60_000,
+    Number.parseInt(process.env.VIDEO_PAGE_PARSE_CACHE_TTL_MS || `${10 * 60_000}`, 10) ||
+      10 * 60_000
+  ),
+  videoPageParseCacheMaxEntries: Math.max(
+    64,
+    Number.parseInt(process.env.VIDEO_PAGE_PARSE_CACHE_MAX_ENTRIES || "1024", 10) || 1024
+  ),
+  /**
+   * HLS 分片（.ts 等）以「上游絕對 URL」為鍵的記憶體快取；多人看同一 CDN 分片時可省上游頻寬與延遲。
+   * 設 `STREAM_SEGMENT_CACHE=0` 或 `false` 關閉。
+   */
+  streamSegmentCacheEnabled: (() => {
+    const t = (process.env.STREAM_SEGMENT_CACHE ?? "").trim().toLowerCase();
+    if (t === "0" || t === "false" || t === "no" || t === "off") return false;
+    return true;
+  })(),
+  streamSegmentCacheTtlMs: Math.max(
+    30_000,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_TTL_MS || `${3 * 60_000}`, 10) || 3 * 60_000
+  ),
+  streamSegmentCacheMaxEntries: Math.max(
+    32,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_ENTRIES || "128", 10) || 128
+  ),
+  streamSegmentCacheMaxBytesPerSegment: Math.max(
+    256 * 1024,
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_BYTES_PER_SEGMENT || `${4 * 1024 * 1024}`, 10) ||
+      4 * 1024 * 1024
   ),
   /** Recombee（首頁推薦／搜尋）HTTP 逾時毫秒 */
   recombeeTimeoutMs: Math.min(

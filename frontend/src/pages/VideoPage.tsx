@@ -1,6 +1,6 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   apiGet,
   apiPost,
@@ -15,6 +15,7 @@ import FavoriteHeart from "../components/FavoriteHeart";
 import SiteHeader from "../components/SiteHeader";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
+import { pickGenresForDetail, pickTitle } from "../lib/recombeeDisplay";
 
 type VideoDetail = {
   slug: string;
@@ -46,6 +47,8 @@ type RecRes = { recomms: RecommItem[] };
 type HealthRes = { downloadQueueConcurrency?: number };
 type FavStatusRes = { favorited: boolean };
 
+type DetailNavState = { detailPeek?: RecommItem };
+
 type DownloadUi =
   | { mode: "idle" }
   | {
@@ -66,6 +69,12 @@ function downloadStatusLine(s: "pending" | "running"): string {
 export default function VideoPage() {
   const { locale } = useMissavLocale();
   const { slug = "" } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const navPeek =
+    location.state && typeof location.state === "object" && "detailPeek" in location.state
+      ? (location.state as DetailNavState).detailPeek
+      : undefined;
+  const peek = navPeek && navPeek.id === slug ? navPeek : undefined;
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [data, setData] = useState<VideoDetail | null>(null);
@@ -85,7 +94,7 @@ export default function VideoPage() {
   /** 使用者按下「下載」後略過尚未完成的進頁查詢結果，避免蓋掉進行中狀態 */
   const downloadKickRef = useRef(0);
 
-  const posterUrl = data ? thumbnailUrlForSlug(data.slug, locale) : "";
+  const posterUrl = slug ? thumbnailUrlForSlug(slug, locale) : "";
 
   function abortDownloadPoll() {
     pollAbortRef.current?.abort();
@@ -164,7 +173,7 @@ export default function VideoPage() {
   }, [slug, locale]);
 
   useEffect(() => {
-    if (!slug || !data) return;
+    if (!slug) return;
     let cancelled = false;
     apiGet<RecRes>(`/api/recommendations?itemId=${encodeURIComponent(slug)}&limit=14`)
       .then((r) => {
@@ -176,7 +185,7 @@ export default function VideoPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug, data, locale]);
+  }, [slug, locale]);
 
   /**
    * 須在使用者點擊的同步堆疊內呼叫 play()（尤其 iOS Safari），不可等到 useEffect／MANIFEST_PARSED 才 play。
@@ -481,7 +490,7 @@ export default function VideoPage() {
     }
   }
 
-  if (loading) {
+  if (loading && !peek) {
     return (
       <div className="page-shell detail-missav">
         <SiteHeader tone="detail" />
@@ -500,7 +509,7 @@ export default function VideoPage() {
     );
   }
 
-  if (err || !data) {
+  if (!loading && (err || !data)) {
     return (
       <div className="page-shell detail-missav">
         <SiteHeader tone="detail" />
@@ -517,6 +526,12 @@ export default function VideoPage() {
     );
   }
 
+  const streamReady = Boolean(data?.m3u8_play_url);
+  const displayTitle = data?.title ?? (peek ? pickTitle(peek.values, slug) : slug);
+  const displayGenres =
+    data && data.genres.length > 0 ? data.genres : peek ? pickGenresForDetail(peek.values) : [];
+  const displayVideoCode = data?.video_code ?? slug;
+
   return (
     <div className="page-shell detail-missav">
       <div className="detail-backdrop" style={{ backgroundImage: `url(${posterUrl})` }} aria-hidden />
@@ -527,7 +542,7 @@ export default function VideoPage() {
         <nav className="detail-breadcrumb detail-breadcrumb--bar" aria-label="麵包屑">
           <Link to="/">首頁</Link>
           <span aria-hidden> / </span>
-          <span className="detail-breadcrumb-current">{data.video_code || data.slug}</span>
+          <span className="detail-breadcrumb-current">{displayVideoCode}</span>
         </nav>
 
         <div className="detail-yt-grid">
@@ -535,13 +550,13 @@ export default function VideoPage() {
             <div className="detail-player-stage">
               <div className="player-wrap player-missav player-elevated player-wrap--clickplay">
                 <video ref={videoRef} controls playsInline poster={posterUrl} preload="none" />
-                {!playbackStarted ? (
+                {streamReady && !playbackStarted ? (
                   <button
                     type="button"
                     className="player-start-overlay"
                     onClick={() => {
                       const el = videoRef.current;
-                      const raw = data.m3u8_play_url;
+                      const raw = data?.m3u8_play_url;
                       if (!el || !raw) return;
                       attachStreamAndPlayFromUserGesture(el, resolveMediaUrl(raw));
                       setPlaybackStarted(true);
@@ -557,6 +572,11 @@ export default function VideoPage() {
                     <span className="player-start-label">播放</span>
                   </button>
                 ) : null}
+                {!streamReady ? (
+                  <div className="player-start-overlay" style={{ pointerEvents: "none" }} aria-live="polite">
+                    <span className="player-start-label">取得播放來源中…</span>
+                  </div>
+                ) : null}
                 {playerErr ? (
                   <div className="player-error-banner" role="alert">
                     {playerErr}
@@ -566,11 +586,11 @@ export default function VideoPage() {
             </div>
 
             <div className="detail-title-row">
-              <h1 className="detail-h1">{data.title}</h1>
+              <h1 className="detail-h1">{displayTitle}</h1>
               {favorited != null ? (
                 <FavoriteHeart
-                  slug={data.slug}
-                  title={data.title}
+                  slug={slug}
+                  title={displayTitle}
                   initialFavorited={favorited}
                   className="detail-favorite-heart"
                   onAfterChange={(f) => setFavorited(f)}
@@ -581,21 +601,23 @@ export default function VideoPage() {
             </div>
 
             <div className="detail-chips-row">
-              {data.video_code ? <span className="chip chip-code">{data.video_code}</span> : null}
-              {data.publish_date ? <span className="chip chip-muted">{data.publish_date}</span> : null}
-              {data.manufacturer ? <span className="chip chip-outline">{data.manufacturer}</span> : null}
+              {displayVideoCode ? <span className="chip chip-code">{displayVideoCode}</span> : null}
+              {data?.publish_date ? <span className="chip chip-muted">{data.publish_date}</span> : null}
+              {data?.manufacturer ? <span className="chip chip-outline">{data.manufacturer}</span> : null}
             </div>
 
             <p className="detail-player-note">
-              按下「播放」後才會向本站載入串流（不會進頁就自動拉片）。播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。
+              {streamReady
+                ? "按下「播放」後才會向本站載入串流（不會進頁就自動拉片）。播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。"
+                : "後端正在向 MissAV 取得影片頁並解析播放清單，完成後即可按「播放」載入串流（進頁不會自動拉片）。"}
             </p>
 
             <div className="detail-primary-below">
-              {data.genres.length > 0 ? (
+              {displayGenres.length > 0 ? (
                 <div className="detail-tags-block">
                   <h2 className="detail-section-label">類型</h2>
                   <div className="tag-row tag-row-missav">
-                    {data.genres.map((g) => (
+                    {displayGenres.map((g) => (
                       <Link
                         key={g}
                         to={`/search?q=${encodeURIComponent(g)}`}
@@ -609,39 +631,45 @@ export default function VideoPage() {
                 </div>
               ) : null}
 
-              <div className="detail-meta-board">
-                <h2 className="detail-section-label">詳細資料</h2>
-                <dl className="meta-grid">
-                  <dt>番號</dt>
-                  <dd>{data.video_code}</dd>
-                  <dt>發行日</dt>
-                  <dd>{data.publish_date}</dd>
-                  {data.title_original_japanese ? (
-                    <>
-                      <dt>日文標題</dt>
-                      <dd>{data.title_original_japanese}</dd>
-                    </>
-                  ) : null}
-                  {data.series ? (
-                    <>
-                      <dt>系列</dt>
-                      <dd>{data.series}</dd>
-                    </>
-                  ) : null}
-                  {data.manufacturer ? (
-                    <>
-                      <dt>廠牌</dt>
-                      <dd>{data.manufacturer}</dd>
-                    </>
-                  ) : null}
-                  {data.etiquette ? (
-                    <>
-                      <dt>其它</dt>
-                      <dd>{data.etiquette}</dd>
-                    </>
-                  ) : null}
-                </dl>
-              </div>
+              {data ? (
+                <div className="detail-meta-board">
+                  <h2 className="detail-section-label">詳細資料</h2>
+                  <dl className="meta-grid">
+                    <dt>番號</dt>
+                    <dd>{data.video_code}</dd>
+                    <dt>發行日</dt>
+                    <dd>{data.publish_date}</dd>
+                    {data.title_original_japanese ? (
+                      <>
+                        <dt>日文標題</dt>
+                        <dd>{data.title_original_japanese}</dd>
+                      </>
+                    ) : null}
+                    {data.series ? (
+                      <>
+                        <dt>系列</dt>
+                        <dd>{data.series}</dd>
+                      </>
+                    ) : null}
+                    {data.manufacturer ? (
+                      <>
+                        <dt>廠牌</dt>
+                        <dd>{data.manufacturer}</dd>
+                      </>
+                    ) : null}
+                    {data.etiquette ? (
+                      <>
+                        <dt>其它</dt>
+                        <dd>{data.etiquette}</dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </div>
+              ) : (
+                <p className="detail-footnote" style={{ marginTop: "1rem" }}>
+                  詳細資料（發行日、系列等）將在影片頁解析完成後顯示。
+                </p>
+              )}
             </div>
           </div>
 

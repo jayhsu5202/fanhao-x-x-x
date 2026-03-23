@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
 import { accessSync, constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import PQueue from "p-queue";
 import { config } from "../config.js";
 import { nestedDownloadRelDir } from "./download-paths.js";
+import { runDownloadJob } from "./python-download-worker-pool.js";
 import { prisma } from "./prisma.js";
 import type { DownloadJob as DbJob } from "@prisma/client";
 
@@ -129,57 +129,27 @@ export async function createDownloadJob(
 
     const base = (missavPageBase ?? config.missavBaseUrl).replace(/\/$/, "");
     const pageUrl = `${base}/${slug}`;
-    const payload = JSON.stringify({
+    const result = await runDownloadJob({
+      jobId: id,
       pageUrl,
       outputPath: outFile,
       quality,
     });
 
-    await new Promise<void>((resolve) => {
-      const child = spawn(config.pythonPath, [config.workerScript], {
-        cwd: config.projectRoot,
-        env: {
-          ...process.env,
-          PYTHONPATH: config.projectRoot,
-          PYTHONUNBUFFERED: "1",
+    if (result.ok) {
+      await prisma.downloadJob.update({
+        where: { id },
+        data: { status: "done", message: "完成" },
+      });
+    } else {
+      await prisma.downloadJob.update({
+        where: { id },
+        data: {
+          status: "error",
+          message: result.error?.slice(0, 500) || "下載失敗",
         },
-        stdio: ["pipe", "pipe", "pipe"],
       });
-      let stderr = "";
-      let settled = false;
-      const finish = (code: number | null, errMsg?: string) => {
-        if (settled) return;
-        settled = true;
-        void (async () => {
-          if (code === 0) {
-            await prisma.downloadJob.update({
-              where: { id },
-              data: { status: "done", message: "完成" },
-            });
-          } else {
-            await prisma.downloadJob.update({
-              where: { id },
-              data: {
-                status: "error",
-                message: errMsg || stderr.slice(-500) || `程序結束碼 ${code ?? "?"}`,
-              },
-            });
-          }
-          resolve();
-        })();
-      };
-      child.stderr?.on("data", (c: Buffer) => {
-        stderr += c.toString();
-      });
-      child.on("error", (e) => {
-        finish(null, e instanceof Error ? e.message : String(e));
-      });
-      child.on("close", (code) => {
-        finish(code ?? 1);
-      });
-      child.stdin?.write(payload);
-      child.stdin?.end();
-    });
+    }
   });
 
   const row = await prisma.downloadJob.findUniqueOrThrow({ where: { id } });

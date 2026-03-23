@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -45,7 +46,20 @@ import {
   recombeeRecommendNextItems,
   recombeeSearch,
 } from "./lib/recombee.js";
-import { getThumbHtmlQueueStats, resolveThumbnailUrlFromPage } from "./lib/thumb-parse-cache.js";
+import {
+  getCachedThumbImage,
+  getThumbnailCacheStats,
+  primeThumbnailParseCache,
+  resolveThumbnailUrlFromPage,
+  setCachedThumbImage,
+} from "./lib/thumbnail-cache.js";
+import {
+  getCachedSegment,
+  getStreamSegmentCacheStats,
+  setCachedSegment,
+} from "./lib/stream-segment-cache.js";
+import { getDownloadWorkerPoolStats } from "./lib/python-download-worker-pool.js";
+import { getCachedVideoPageParsed, setCachedVideoPageParsed } from "./lib/video-detail-cache.js";
 import { upstreamFetch } from "./lib/upstream-fetch.js";
 import { signStreamToken, verifyStreamToken } from "./lib/stream-token.js";
 
@@ -109,8 +123,11 @@ app.get("/api/health", async () => {
     downloadQueueConcurrency: config.downloadQueueConcurrency,
     upstreamConnectionsPerOrigin: config.upstreamConnectionsPerOrigin,
     queue,
-    ...getThumbHtmlQueueStats(),
+    pythonHtmlWorkerCount: config.pythonHtmlWorkerCount,
+    ...getDownloadWorkerPoolStats(),
+    ...getThumbnailCacheStats(),
     ...getVideoPageFetchQueueStats(),
+    ...getStreamSegmentCacheStats(),
   };
 });
 
@@ -191,24 +208,32 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
  * 不先打 GET /items（public token 不允許，且並行多筆易逾時拖垮整次搜尋，英文關鍵字特別常觸發 slug 候選）。
  */
 async function recombeeSearchFirstPageWithRecall(query: string, limit: number): Promise<Record<string, unknown>> {
-  let data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
-  let recomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
-
   if (shouldMergeHyphenStudioSearch(query)) {
     const altQ = hyphenStudioSearchQuery(query);
     if (altQ.replace(/-$/, "").length >= 2) {
-      try {
-        const altData = (await recombeeSearch(altQ, limit)) as Record<string, unknown>;
-        const sec = Array.isArray(altData.recomms) ? altData.recomms : [];
-        if (sec.length > 0) {
-          recomms = dedupeFeaturedRecomms([...sec, ...recomms]);
-          data = { ...data, recomms };
+      const [mainR, altR] = await Promise.allSettled([
+        recombeeSearch(query, limit),
+        recombeeSearch(altQ, limit),
+      ]);
+      if (mainR.status === "fulfilled") {
+        const data = mainR.value as Record<string, unknown>;
+        let recomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
+        if (altR.status === "fulfilled") {
+          const altData = altR.value as Record<string, unknown>;
+          const sec = Array.isArray(altData.recomms) ? altData.recomms : [];
+          if (sec.length > 0) {
+            recomms = dedupeFeaturedRecomms([...sec, ...recomms]);
+            return { ...data, recomms };
+          }
         }
-      } catch {
-        /* 補搜失敗不影響主結果 */
+        return data;
       }
+      /* 主查詢失敗則交給下方 fallback */
     }
   }
+
+  let data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+  let recomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
 
   const n0 = Array.isArray(data.recomms) ? data.recomms.length : 0;
   if (n0 === 0) {
@@ -475,20 +500,28 @@ app.get("/api/videos/:slug", async (request, reply) => {
   const pageUrl = `${base}/${slug}`;
   const locKey = resolveMissavLocaleKeyFromRequest(request);
   const acceptLang = acceptLanguageForLocaleKey(locKey);
-  let html: string;
-  try {
-    html = await fetchVideoPage(pageUrl, acceptLang);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return sendError(reply, 502, "PAGE_FETCH", "無法取得影片頁", { detail: msg });
+  const videoCacheKey = `video:${locKey}:${slug}`;
+  const thumbCacheKey = `thumb:${locKey}:${slug}`;
+
+  let parsed = getCachedVideoPageParsed(videoCacheKey);
+  if (!parsed) {
+    let html: string;
+    try {
+      html = await fetchVideoPage(pageUrl, acceptLang);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return sendError(reply, 502, "PAGE_FETCH", "無法取得影片頁", { detail: msg });
+    }
+    try {
+      parsed = parseVideoHtml(html);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return sendError(reply, 502, "PARSE_ERROR", "無法解析影片頁", { detail: msg });
+    }
+    setCachedVideoPageParsed(videoCacheKey, parsed);
+    primeThumbnailParseCache(thumbCacheKey, parsed.thumbnail);
   }
-  let parsed;
-  try {
-    parsed = parseVideoHtml(html);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return sendError(reply, 502, "PARSE_ERROR", "無法解析影片頁", { detail: msg });
-  }
+
   const exp = Math.floor(Date.now() / 1000) + STREAM_TTL_SEC;
   const token = signStreamToken(config.streamSecret, {
     exp,
@@ -521,6 +554,15 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
   const acceptLang = acceptLanguageForLocaleKey(locKey);
   const cacheKey = `thumb:${locKey}:${slug}`;
   try {
+    const imgCacheKey = `thumbimg:${locKey}:${slug}`;
+    const imgHit = getCachedThumbImage(imgCacheKey);
+    if (imgHit) {
+      reply.header("Content-Type", imgHit.ct);
+      reply.header("Cache-Control", "private, max-age=120");
+      noStoreLocale(reply);
+      return reply.send(imgHit.buf);
+    }
+
     const thumbUrl = await resolveThumbnailUrlFromPage(cacheKey, () => fetchVideoPage(pageUrl, acceptLang));
     if (!thumbUrl) {
       request.log.warn({ slug, pageUrl }, "thumbnail: parse miss (no og:image in HTML)");
@@ -536,7 +578,9 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
     }
     const ct = res.headers.get("content-type") || "image/jpeg";
     const buf = Buffer.from(await res.arrayBuffer());
+    setCachedThumbImage(imgCacheKey, buf, ct);
     reply.header("Content-Type", ct);
+    reply.header("Cache-Control", "private, max-age=120");
     noStoreLocale(reply);
     return reply.send(buf);
   } catch (e) {
@@ -561,6 +605,16 @@ app.get("/api/stream", async (request, reply) => {
     return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
   }
 
+  if (payload.typ === "segment") {
+    const hit = getCachedSegment(payload.target);
+    if (hit) {
+      reply.header("Content-Type", hit.ct || "application/octet-stream");
+      reply.header("Cache-Control", "public, max-age=60");
+      reply.header("Content-Length", String(hit.buf.length));
+      return reply.send(hit.buf);
+    }
+  }
+
   let res: Awaited<ReturnType<typeof upstreamFetch>>;
   try {
     res = await upstreamFetch(payload.target, {
@@ -577,14 +631,34 @@ app.get("/api/stream", async (request, reply) => {
   }
 
   const ct = res.headers.get("content-type") || "";
-  const buf = Buffer.from(await res.arrayBuffer());
 
   if (payload.typ === "segment") {
     reply.header("Content-Type", ct || "application/octet-stream");
     reply.header("Cache-Control", "public, max-age=60");
-    return reply.send(buf);
+    const cl = res.headers.get("content-length");
+    const clNum = cl ? Number.parseInt(cl, 10) : NaN;
+    const canBufferCache =
+      config.streamSegmentCacheEnabled &&
+      Number.isFinite(clNum) &&
+      clNum > 0 &&
+      clNum <= config.streamSegmentCacheMaxBytesPerSegment;
+
+    if (canBufferCache && res.body) {
+      const buf = Buffer.from(await res.arrayBuffer());
+      setCachedSegment(payload.target, buf, ct || "application/octet-stream");
+      reply.header("Content-Length", String(buf.length));
+      return reply.send(buf);
+    }
+
+    const len = res.headers.get("content-length");
+    if (len) reply.header("Content-Length", len);
+    if (res.body) {
+      return reply.send(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]));
+    }
+    return reply.send(Buffer.alloc(0));
   }
 
+  const buf = Buffer.from(await res.arrayBuffer());
   const text = buf.toString("utf8");
   const looksLikePlaylist =
     text.trimStart().startsWith("#EXTM3U") || ct.includes("mpegurl");

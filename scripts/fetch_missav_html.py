@@ -17,6 +17,8 @@ def main() -> int:
         return 1
     url = sys.argv[1]
     client = Client()
+    if len(sys.argv) >= 3 and sys.argv[2].strip():
+        client.core.session.headers["Accept-Language"] = sys.argv[2]
     parsed = urlparse(url)
     if parsed.scheme and parsed.netloc:
         client.core.session.headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"

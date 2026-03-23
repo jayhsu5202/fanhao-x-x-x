@@ -2,25 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { thumbnailUrlForSlug } from "../api/client";
 import { useMissavLocale } from "../context/MissavLocaleContext";
+import { LIST_CHIPS_MAX, pickListChips, pickTitle } from "../lib/recombeeDisplay";
 import FavoriteHeart from "./FavoriteHeart";
 
 export type RecommItem = {
   id: string;
   values?: Record<string, unknown>;
 };
-
-function pickTitle(v: Record<string, unknown> | undefined, id: string): string {
-  if (!v) return id;
-  const zh = v.title_zh;
-  const cn = v.title_cn;
-  const en = v.title_en;
-  const t = v.title;
-  if (typeof zh === "string" && zh) return zh;
-  if (typeof cn === "string" && cn) return cn;
-  if (typeof en === "string" && en) return en;
-  if (typeof t === "string" && t) return t;
-  return id;
-}
 
 /** Recombee catalog：實測有 `duration`（秒，number）、`tags`／`genres`（string[]）、`type`（string） */
 function formatDurationSec(seconds: unknown): string | null {
@@ -34,8 +22,6 @@ function formatDurationSec(seconds: unknown): string | null {
   }
   return `${m}:${String(r).padStart(2, "0")}`;
 }
-
-const LIST_CHIPS_MAX = 3;
 
 /**
  * Recombee：`is_uncensored_leak`、`type`（如 uncensored-leak）。
@@ -52,43 +38,14 @@ function pickUncensoredBadgeLabel(v: Record<string, unknown> | undefined): strin
   return null;
 }
 
-/** 列表小標：合併 tags、genres、labels（去重），不足再退回 type */
-function pickListChips(v: Record<string, unknown> | undefined, max: number): string[] {
-  if (!v) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  const pushFrom = (arr: unknown) => {
-    if (!Array.isArray(arr)) return;
-    for (const x of arr) {
-      if (typeof x !== "string" || !x.trim()) continue;
-      const t = x.trim();
-      const k = t.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(t);
-      if (out.length >= max) return;
-    }
-  };
-  pushFrom(v.tags);
-  pushFrom(v.genres);
-  pushFrom(v.labels);
-  if (out.length > 0) return out;
-  const typ = v.type;
-  if (typeof typ === "string" && typ.trim()) return [typ.trim()];
-  return [];
-}
-
 export default function VideoCard({
   item,
-  /** 預設 eager：避免瀏覽器 lazy 延後載入造成捲動時才「補圖」的卡頓感 */
-  thumbLoading = "eager",
   showFavoriteHeart = false,
   /** 在「我的最愛」列表應為 true，避免愛心顯示成未加入 */
   initialFavorited = false,
   onFavoriteRemoved,
 }: {
   item: RecommItem;
-  thumbLoading?: "eager" | "lazy";
   showFavoriteHeart?: boolean;
   initialFavorited?: boolean;
   onFavoriteRemoved?: () => void;
@@ -112,14 +69,14 @@ export default function VideoCard({
   return (
     <div className="card-slot-wrap">
       <div className="card">
-        <Link to={videoTo} className="card-thumb-link">
+        <Link to={videoTo} state={{ detailPeek: item }} className="card-thumb-link">
           <div className="card-thumb">
             {thumbOk ? (
               <img
                 key={thumbSrc}
                 src={thumbSrc}
                 alt=""
-                loading={thumbLoading}
+                loading="eager"
                 decoding="async"
                 className="card-thumb-img"
                 onError={() => setThumbOk(false)}
@@ -144,7 +101,7 @@ export default function VideoCard({
           </div>
         </Link>
         <div className="card-body">
-          <Link to={videoTo} className="card-slug-link">
+          <Link to={videoTo} state={{ detailPeek: item }} className="card-slug-link">
             <div className="slug">{item.id}</div>
           </Link>
           {chips.length > 0 ? (
@@ -161,7 +118,7 @@ export default function VideoCard({
               ))}
             </div>
           ) : null}
-          <Link to={videoTo} className="card-title-link">
+          <Link to={videoTo} state={{ detailPeek: item }} className="card-title-link">
             <p className="title">{title}</p>
           </Link>
         </div>
