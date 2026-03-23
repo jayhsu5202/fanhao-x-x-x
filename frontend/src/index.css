@@ -1325,6 +1325,70 @@ code.inline-code {
   font-weight: 400;
 }
 
+.search-sort-bar {
+  max-width: 42rem;
+  margin: 0 auto 1.15rem;
+  padding: 0 var(--page-gutter);
+  text-align: center;
+}
+
+.search-sort-bar-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+  font-weight: 600;
+}
+
+.search-sort-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.search-sort-btn {
+  font-family: var(--font-ui);
+  font-size: clamp(0.8rem, 1.5vw, 0.88rem);
+  padding: 0.38rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.search-sort-btn:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+
+.search-sort-btn.is-active {
+  border-color: var(--accent-soft);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search-sort-btn:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.search-sort-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.45;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .search-results-form {
   max-width: var(--search-form-max);
   width: 100%;

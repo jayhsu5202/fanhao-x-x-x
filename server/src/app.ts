@@ -27,6 +27,7 @@ import {
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
 import { rankSearchRecommsForQuery } from "./lib/recombee-search-rank.js";
+import { orderSearchRecommsForMode, parseSearchSortMode } from "./lib/recombee-search-sort.js";
 import { searchVariantsForRecall } from "./lib/recombee-search-variants.js";
 import {
   LOCALE_OPTIONS,
@@ -117,7 +118,14 @@ app.get("/api/locales", async () => ({
 }));
 
 app.get("/api/search", async (request, reply) => {
-  const q = request.query as { query?: string; limit?: string; recommId?: string; cursor?: string; fresh?: string };
+  const q = request.query as {
+    query?: string;
+    limit?: string;
+    recommId?: string;
+    cursor?: string;
+    fresh?: string;
+    sort?: string;
+  };
   const query = (q.query ?? "").trim();
   if (!query) {
     return sendError(reply, 400, "BAD_REQUEST", "缺少搜尋關鍵字 query");
@@ -131,6 +139,7 @@ app.get("/api/search", async (request, reply) => {
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
   const forceFresh = q.fresh === "1" || q.fresh === "true";
+  const sortMode = parseSearchSortMode(q.sort);
   try {
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
@@ -148,11 +157,11 @@ app.get("/api/search", async (request, reply) => {
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const deduped = dedupeFeaturedRecomms(rawRecomms);
-    const recomms = rankSearchRecommsForQuery(query, deduped);
+    const recomms = orderSearchRecommsForMode(query, deduped, sortMode);
     const recomId = pickRecomId(data);
     const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
-    return { recomms, recomId, hasMore, numberNext: data.numberNext ?? null };
+    return { recomms, recomId, hasMore, sort: sortMode, numberNext: data.numberNext ?? null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return sendError(reply, 502, "RECOMBEE_ERROR", "搜尋服務失敗", { detail: msg });
