@@ -20,10 +20,9 @@
 | `CORS_ORIGIN` | 選填；未設定時允許任意來源（方便本機）。正式環境請設為你的前端網域 |
 | `PUBLIC_BASE_URL` | 選填；**留空**時 `m3u8_play_url` 與 playlist 內嵌皆為**相對路徑** `/api/stream?...`（適用 Vite `proxy` 或 Nginx 同源）。僅在前後端不同網域且無反代時才設為公開 API 根網址 |
 | `MISSAV_HTML_PYTHON_ONLY` | 選填；設為 `1` 時，MissAV **影片頁 HTML** 強制只走 Python（`scripts/fetch_missav_html.py`）。預設為先 Node（undici）抓取，失敗或內容異常再回退 Python |
-| `DOWNLOAD_QUEUE_CONCURRENCY` | 選填；下載佇列**同時執行**的工作數（每個工作一個 Python 子程序），預設 `6`，上限 `16` |
-| `THUMB_HTML_FETCH_CONCURRENCY` | 選填；**卡片縮圖／preview** 解析 MissAV 影片頁時，同時進行的上游 HTML 抓取數，預設 **`4`**（過高易觸發對站 **403**），上限 `48` |
-| `VIDEO_PAGE_FETCH_CONCURRENCY` | 選填；詳情頁等 `fetchVideoPage` 併發，預設 **`6`**，上限 `48` |
-| `UPSTREAM_CONNECTIONS_PER_ORIGIN` | 選填；undici 對**同一 origin** 的併發連線數（HLS 分片、縮圖、MissAV HTML 等），預設 `192`，上限 `384` |
+| `DOWNLOAD_QUEUE_CONCURRENCY` | 選填；下載佇列**同時執行**的工作數（每個工作一個 Python 子程序），預設 `4`，上限 `8` |
+| `THUMB_HTML_FETCH_CONCURRENCY` | 選填；**卡片縮圖／preview** 解析 MissAV 影片頁時，同時進行的上游 HTML 抓取數，預設 `16`，上限 `32` |
+| `UPSTREAM_CONNECTIONS_PER_ORIGIN` | 選填；undici 對**同一 origin** 的併發連線數（HLS 分片、縮圖、MissAV HTML 等），預設 `128`，上限 `256` |
 | `THUMB_PARSE_CACHE_TTL_MS` | 選填；上述解析出的封面 CDN URL 記憶體快取 TTL（毫秒），預設 15 分鐘，最少 60 秒 |
 | `THUMB_PARSE_CACHE_MAX_ENTRIES` | 選填；快取最多筆數，預設 `2048`，逾量刪最舊 |
 
@@ -83,12 +82,6 @@ npm run dev
 詳情頁下載：前端會在取得 `jobId` 後寫入 **sessionStorage**（依 slug），重新整理同一分頁會自動向伺服器續查同一工作；完成後改為顯示「下載 MP4」連結（不再強制整頁跳轉）。關閉分頁即失去此記錄。下載實際合併仍由 **Python worker**（`missav_api`／`eaf_base_api`）執行；若要完全改寫成純 Node，需自行實作 m3u8 分片抓取與 ffmpeg 管線，與現有 stack 脫鉤成本高。
 
 錯誤格式：`{ "error": { "code", "message", "details?" } }`
-
-### 縮圖空白、詳情頁「無法取得影片頁」，日誌裡是 403
-
-後端若出現 **`Forbidden (403)`**、`httpx.HTTPStatusError`（堆疊在 `base_api` / `missav_api` 的 `fetch`）：代表 **MissAV 拒絕該次 HTTP 請求**，常見於**併發太高**或**對站防爬／線路**。這與「有沒有照專案用 missav_api」無關——程式已是先 Node、再回退 **同一套** `scripts/fetch_missav_html.py` + `Client().core.fetch`。
-
-**可先試**：不要一次把 `THUMB_HTML_FETCH_CONCURRENCY`、`VIDEO_PAGE_FETCH_CONCURRENCY` 拉太高（預設已改保守）；必要時設 `MISSAV_HTML_PYTHON_ONLY=1` 對照行為。若**單機仍全 403**，需檢查網路／IP 或升級上游 Python 依賴，本站無法代替對站放行。
 
 ## 下載 worker
 

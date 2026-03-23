@@ -47,18 +47,15 @@ export const config = {
     16,
     Math.max(1, Number.parseInt(process.env.DOWNLOAD_QUEUE_CONCURRENCY || "6", 10) || 6)
   ),
-  /**
-   * 同時抓取 MissAV 影片頁 HTML 以解析縮圖的併發。
-   * 預設保守（4）：首頁一次打太多並行請求時，對站常回 403；需要再自行用環境變數拉高。
-   */
+  /** 同時抓取 MissAV 影片頁 HTML 以解析縮圖的併發（卡片很多時） */
   thumbHtmlFetchConcurrency: Math.min(
     48,
-    Math.max(1, Number.parseInt(process.env.THUMB_HTML_FETCH_CONCURRENCY || "4", 10) || 4)
+    Math.max(1, Number.parseInt(process.env.THUMB_HTML_FETCH_CONCURRENCY || "24", 10) || 24)
   ),
-  /** 詳情／預覽等 `fetchVideoPage` 併發上限（與縮圖佇列疊加時仍會打 MissAV） */
+  /** 詳情／預覽等呼叫 `fetchVideoPage` 的全域併發上限（與縮圖佇列分開，避免單頁打爆） */
   videoPageFetchConcurrency: Math.min(
     48,
-    Math.max(1, Number.parseInt(process.env.VIDEO_PAGE_FETCH_CONCURRENCY || "6", 10) || 6)
+    Math.max(1, Number.parseInt(process.env.VIDEO_PAGE_FETCH_CONCURRENCY || "20", 10) || 20)
   ),
   /** undici 對「同一 origin」可開的併發連線（m3u8 分片、縮圖、MissAV HTML 等共用） */
   upstreamConnectionsPerOrigin: Math.min(
