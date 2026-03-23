@@ -82,7 +82,6 @@ export default function VideoCard({
   const vals = item.values;
   const title = pickTitle(vals, item.id);
   const durationLabel = formatDurationSec(vals?.duration);
-  const releasedLabel = formatReleasedAt(vals?.released_at);
   const hasChineseSubtitle = vals?.has_chinese_subtitle === true;
   const chips = pickListChips(vals, LIST_CHIPS_MAX);
   const thumbSrc = thumbnailUrlForSlug(item.id, locale);
