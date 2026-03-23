@@ -26,6 +26,7 @@ import {
   parseVideoHtml,
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
+import { rankSearchRecommsForQuery } from "./lib/recombee-search-rank.js";
 import { searchVariantsForRecall } from "./lib/recombee-search-variants.js";
 import {
   LOCALE_OPTIONS,
@@ -133,7 +134,6 @@ app.get("/api/search", async (request, reply) => {
   try {
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
-      /** 番號與 itemId 一致時直查置頂；全文勿加 ReQL filter（交集會漏命中）。 */
       data = await recombeeSearchFirstPageWithRecall(query, limit);
     } else {
       try {
@@ -147,7 +147,8 @@ app.get("/api/search", async (request, reply) => {
       }
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
-    const recomms = dedupeFeaturedRecomms(rawRecomms);
+    const deduped = dedupeFeaturedRecomms(rawRecomms);
+    const recomms = rankSearchRecommsForQuery(query, deduped);
     const recomId = pickRecomId(data);
     const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
@@ -359,7 +360,8 @@ app.get("/api/browse/:category", async (request, reply) => {
       }
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
-    const recomms = dedupeFeaturedRecomms(rawRecomms);
+    const dedupedSearch = dedupeFeaturedRecomms(rawRecomms);
+    const recomms = rankSearchRecommsForQuery(qtext, dedupedSearch);
     const recomId = pickRecomId(data);
     const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
