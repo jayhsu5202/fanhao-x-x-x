@@ -47,3 +47,26 @@ export function pickGenresForDetail(v: Record<string, unknown> | undefined): str
   if (!Array.isArray(g)) return [];
   return g.filter((x): x is string => typeof x === "string" && Boolean(x.trim())).map((x) => x.trim());
 }
+
+export function pickExtraTagsForDetail(v: Record<string, unknown> | undefined, max = 18): string[] {
+  if (!v) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const pushFrom = (arr: unknown) => {
+    if (!Array.isArray(arr)) return;
+    for (const x of arr) {
+      if (typeof x !== "string") continue;
+      const t = x.trim();
+      if (!t) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+      if (out.length >= max) return;
+    }
+  };
+  pushFrom(v.tags);
+  pushFrom(v.genres);
+  pushFrom(v.labels);
+  return out;
+}

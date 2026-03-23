@@ -17,7 +17,7 @@ import { applyBitrateAwareBufferTargets } from "../lib/hlsBitrateBuffer";
 import { hlsConfigProxiedStream } from "../lib/hlsPlayerConfig";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
-import { pickGenresForDetail, pickTitle } from "../lib/recombeeDisplay";
+import { pickExtraTagsForDetail, pickGenresForDetail, pickTitle } from "../lib/recombeeDisplay";
 
 type VideoDetail = {
   slug: string;
@@ -567,6 +567,7 @@ export default function VideoPage() {
   const displayTitle = data?.title ?? (peek ? pickTitle(peek.values, slug) : slug);
   const displayGenres =
     data && data.genres.length > 0 ? data.genres : peek ? pickGenresForDetail(peek.values) : [];
+  const detailExtraTags = peek ? pickExtraTagsForDetail(peek.values).filter((tag) => !displayGenres.includes(tag)) : [];
   const displayVideoCode = data?.video_code ?? slug;
 
   return (
@@ -662,6 +663,24 @@ export default function VideoPage() {
                         title={`搜尋：${g}`}
                       >
                         {g}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {detailExtraTags.length > 0 ? (
+                <div className="detail-tags-block">
+                  <h2 className="detail-section-label">更多標籤</h2>
+                  <div className="tag-row tag-row-fanhao">
+                    {detailExtraTags.map((tag) => (
+                      <Link
+                        key={tag}
+                        to={`/search?q=${encodeURIComponent(tag)}`}
+                        className="tag tag-fanhao tag-fanhao-link"
+                        title={`搜尋：${tag}`}
+                      >
+                        {tag}
                       </Link>
                     ))}
                   </div>

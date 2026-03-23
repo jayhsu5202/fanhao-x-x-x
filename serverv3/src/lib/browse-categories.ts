@@ -5,27 +5,16 @@ import {
   RECOMBEE_FILTER_UNCENSORED,
 } from "./recombee-catalog-filters.js";
 
-/** 與 missav 行動版選單對應的分類；資料來源皆為同源 Recombee。 */
-
 export const BROWSE_CATEGORY_KEYS = ["jav", "amateur", "uncensored", "madou"] as const;
 export type BrowseCategoryKey = (typeof BROWSE_CATEGORY_KEYS)[number];
 export type BrowseMode = "featured" | "filtered" | "search";
 
 export type BrowseCategoryMeta = {
   key: BrowseCategoryKey;
-  /** 選單顯示名稱 */
   label: string;
-  /** 頁面副標說明 */
   description: string;
-  /**
-   * featured = 全站匿名趨勢；
-   * filtered = RecommendItemsToUser + ReQL catalogFilter（目錄欄位子集內趨勢，無限捲動可續）；
-   * search = 純 SearchItems（保留給需關鍵字驅動的場景）。
-   */
   mode: BrowseMode;
-  /** mode===search 時必填 */
   searchQuery?: string;
-  /** mode===filtered 時必填，ReQL */
   catalogFilter?: string;
 };
 
@@ -43,14 +32,13 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   jav: {
     key: "jav",
     label: "觀看日本 AV",
-    description: "綜合熱門與趨勢（匿名推薦，等同全站主流量）。",
+    description: "綜合熱門與趨勢的主分類入口。",
     mode: "featured",
   },
   amateur: {
     key: "amateur",
     label: "素人",
-    description:
-      "依目錄 `genres`／`tags` 含「素人」篩選後，在該子集內做趨勢推薦（比單打「素人」全文搜尋覆蓋更完整）。",
+    description: "聚焦素人系列與相關熱門內容。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_AMATEUR,
     searchQuery: "素人",
@@ -58,8 +46,7 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   uncensored: {
     key: "uncensored",
     label: "無碼影片",
-    description:
-      "依 `is_uncensored_leak` 或 `type==uncensored-leak` 篩選後趨勢推薦（對齊目錄欄位，不限於標題是否出現「無碼」）。",
+    description: "聚焦無碼系列與相關熱門片單。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_UNCENSORED,
     searchQuery: "無碼流出",
@@ -67,17 +54,103 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   madou: {
     key: "madou",
     label: "亞洲 AV",
-    description:
-      "依標題欄位（zh／預設 title 等）含「麻豆」篩選後趨勢推薦；較贴近亞洲代理／麻豆主題區塊。",
+    description: "聚焦麻豆、TWAV 與其它亞洲內容。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_MADOU,
     searchQuery: "麻豆傳媒",
   },
 };
 
-const andFilter = (...parts: Array<string | undefined>): string => parts.filter(Boolean).map((x) => `(${x})`).join(" and ");
-
 const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
+  {
+    categoryKey: "jav",
+    key: "recent",
+    label: "最近更新",
+    description: "以最近更新關鍵字聚合的結果。",
+    mode: "search",
+    searchQuery: "最近更新",
+  },
+  {
+    categoryKey: "jav",
+    key: "new-release",
+    label: "新作上市",
+    description: "以新作上市關鍵字聚合的結果。",
+    mode: "search",
+    searchQuery: "新作上市",
+  },
+  {
+    categoryKey: "jav",
+    key: "uncensored-leak",
+    label: "無碼流出",
+    description: "以無碼流出主題聚合的片單。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_UNCENSORED,
+    searchQuery: "無碼流出",
+  },
+  {
+    categoryKey: "jav",
+    key: "actresses",
+    label: "女優一覽",
+    description: "以女優一覽關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "女優一覽",
+  },
+  {
+    categoryKey: "jav",
+    key: "actress-ranking",
+    label: "女優排行",
+    description: "以女優排行關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "女優排行",
+  },
+  {
+    categoryKey: "jav",
+    key: "genres",
+    label: "類型",
+    description: "以類型關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "類型",
+  },
+  {
+    categoryKey: "jav",
+    key: "makers",
+    label: "發行商",
+    description: "以發行商關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "發行商",
+  },
+  {
+    categoryKey: "jav",
+    key: "vr",
+    label: "VR",
+    description: "以 VR 主題聚合的片單。",
+    mode: "search",
+    searchQuery: "VR",
+  },
+  {
+    categoryKey: "jav",
+    key: "today-hot",
+    label: "今日熱門",
+    description: "以今日熱門關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "今日熱門",
+  },
+  {
+    categoryKey: "jav",
+    key: "weekly-hot",
+    label: "本週熱門",
+    description: "以本週熱門關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "本週熱門",
+  },
+  {
+    categoryKey: "jav",
+    key: "monthly-hot",
+    label: "本月熱門",
+    description: "以本月熱門關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "本月熱門",
+  },
   {
     categoryKey: "jav",
     key: "subtitles",
@@ -88,97 +161,196 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     searchQuery: "中文字幕",
   },
   {
-    categoryKey: "jav",
-    key: "new-release",
-    label: "新作上市",
-    description: "以新作相關內容聚合。",
+    categoryKey: "amateur",
+    key: "siro",
+    label: "SIRO",
+    description: "以 SIRO 關鍵字聚合的片單。",
     mode: "search",
-    searchQuery: "新作",
-  },
-  {
-    categoryKey: "jav",
-    key: "recent",
-    label: "最近更新",
-    description: "近期更新與熱門題材。",
-    mode: "search",
-    searchQuery: "最新",
+    searchQuery: "SIRO",
   },
   {
     categoryKey: "amateur",
-    key: "featured",
-    label: "素人精選",
-    description: "素人題材的熱門推薦。",
-    mode: "filtered",
-    catalogFilter: RECOMBEE_FILTER_AMATEUR,
-    searchQuery: "素人",
+    key: "luxu",
+    label: "LUXU",
+    description: "以 LUXU 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "LUXU",
   },
   {
     categoryKey: "amateur",
+    key: "gana",
+    label: "GANA",
+    description: "以 GANA 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "GANA",
+  },
+  {
+    categoryKey: "amateur",
+    key: "prestige-premium",
+    label: "PRESTIGE PREMIUM",
+    description: "以 PRESTIGE PREMIUM 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "PRESTIGE PREMIUM",
+  },
+  {
+    categoryKey: "amateur",
+    key: "scute",
+    label: "S-CUTE",
+    description: "以 S-CUTE 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "S-CUTE",
+  },
+  {
+    categoryKey: "amateur",
+    key: "ara",
+    label: "ARA",
+    description: "以 ARA 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "ARA",
+  },
+  {
+    categoryKey: "uncensored",
     key: "fc2",
     label: "FC2",
-    description: "聚焦 FC2 系列與相關作品。",
+    description: "以 FC2 關鍵字聚合的片單。",
     mode: "search",
     searchQuery: "FC2",
   },
   {
-    categoryKey: "amateur",
-    key: "subtitles",
-    label: "中文字幕",
-    description: "帶中文字幕的素人內容。",
-    mode: "filtered",
-    catalogFilter: andFilter(RECOMBEE_FILTER_AMATEUR, RECOMBEE_FILTER_CHINESE_SUBTITLE),
-    searchQuery: "素人 中文字幕",
-  },
-  {
     categoryKey: "uncensored",
-    key: "featured",
-    label: "無碼精選",
-    description: "無碼流出與相關熱門片單。",
-    mode: "filtered",
-    catalogFilter: RECOMBEE_FILTER_UNCENSORED,
-    searchQuery: "無碼流出",
-  },
-  {
-    categoryKey: "uncensored",
-    key: "subtitles",
-    label: "中文字幕",
-    description: "帶中文字幕的無碼相關內容。",
-    mode: "filtered",
-    catalogFilter: andFilter(RECOMBEE_FILTER_UNCENSORED, RECOMBEE_FILTER_CHINESE_SUBTITLE),
-    searchQuery: "無碼 中文字幕",
-  },
-  {
-    categoryKey: "uncensored",
-    key: "keyword",
-    label: "無碼關鍵字",
-    description: "無碼主題的延伸結果。",
+    key: "heyzo",
+    label: "HEYZO",
+    description: "以 HEYZO 關鍵字聚合的片單。",
     mode: "search",
-    searchQuery: "無碼",
+    searchQuery: "HEYZO",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "tokyohot",
+    label: "東京熱",
+    description: "以 東京熱 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "東京熱",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "1pondo",
+    label: "一本道",
+    description: "以 一本道 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "一本道",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "caribbeancom",
+    label: "Caribbeancom",
+    description: "以 Caribbeancom 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "Caribbeancom",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "caribbeancompr",
+    label: "Caribbeancompr",
+    description: "以 Caribbeancompr 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "Caribbeancompr",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "10musume",
+    label: "10musume",
+    description: "以 10musume 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "10musume",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "pacopacomama",
+    label: "pacopacomama",
+    description: "以 pacopacomama 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "pacopacomama",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "gachinco",
+    label: "Gachinco",
+    description: "以 Gachinco 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "Gachinco",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "xxx-av",
+    label: "XXX-AV",
+    description: "以 XXX-AV 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "XXX-AV",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "marriedslash",
+    label: "人妻斬",
+    description: "以 人妻斬 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "人妻斬",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "naughty4610",
+    label: "頑皮 4610",
+    description: "以 頑皮 4610 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "頑皮 4610",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "naughty0930",
+    label: "頑皮 0930",
+    description: "以 頑皮 0930 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "頑皮 0930",
   },
   {
     categoryKey: "madou",
-    key: "featured",
-    label: "亞洲精選",
-    description: "亞洲與麻豆主題的熱門內容。",
-    mode: "filtered",
-    catalogFilter: RECOMBEE_FILTER_MADOU,
+    key: "madou-media",
+    label: "麻豆傳媒",
+    description: "以 麻豆傳媒 關鍵字聚合的片單。",
+    mode: "search",
     searchQuery: "麻豆傳媒",
   },
   {
     categoryKey: "madou",
-    key: "md",
-    label: "MD",
-    description: "聚焦 MD 系列相關內容。",
+    key: "twav",
+    label: "TWAV",
+    description: "以 TWAV 關鍵字聚合的片單。",
     mode: "search",
-    searchQuery: "MD",
+    searchQuery: "TWAV",
   },
   {
     categoryKey: "madou",
-    key: "domestic",
-    label: "國產精選",
-    description: "國產與亞洲代理主題。",
+    key: "furuke",
+    label: "Furuke",
+    description: "以 Furuke 關鍵字聚合的片單。",
     mode: "search",
-    searchQuery: "國產",
+    searchQuery: "Furuke",
+  },
+  {
+    categoryKey: "madou",
+    key: "k-live",
+    label: "韓國直播",
+    description: "以 韓國直播 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "韓國直播",
+  },
+  {
+    categoryKey: "madou",
+    key: "c-live",
+    label: "中國直播",
+    description: "以 中國直播 關鍵字聚合的片單。",
+    mode: "search",
+    searchQuery: "中國直播",
   },
 ] as const;
 
