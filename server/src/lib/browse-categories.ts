@@ -1,3 +1,9 @@
+import {
+  RECOMBEE_FILTER_AMATEUR,
+  RECOMBEE_FILTER_MADOU,
+  RECOMBEE_FILTER_UNCENSORED,
+} from "./recombee-catalog-filters.js";
+
 /** 與 missav 行動版選單對應的分類；資料來源皆為同源 Recombee。 */
 
 export const BROWSE_CATEGORY_KEYS = ["jav", "amateur", "uncensored", "madou"] as const;
@@ -9,9 +15,16 @@ export type BrowseCategoryMeta = {
   label: string;
   /** 頁面副標說明 */
   description: string;
-  /** featured = 匿名趨勢；search = 以關鍵字搜尋（可視實際結果調整關鍵字） */
-  mode: "featured" | "search";
+  /**
+   * featured = 全站匿名趨勢；
+   * filtered = RecommendItemsToUser + ReQL catalogFilter（目錄欄位子集內趨勢，無限捲動可續）；
+   * search = 純 SearchItems（保留給需關鍵字驅動的場景）。
+   */
+  mode: "featured" | "filtered" | "search";
+  /** mode===search 時必填 */
   searchQuery?: string;
+  /** mode===filtered 時必填，ReQL */
+  catalogFilter?: string;
 };
 
 const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
@@ -24,24 +37,26 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   amateur: {
     key: "amateur",
     label: "素人",
-    description: "以「素人」關鍵字搜尋 Recombee 目錄。",
-    mode: "search",
-    searchQuery: "素人",
+    description:
+      "依目錄 `genres`／`tags` 含「素人」篩選後，在該子集內做趨勢推薦（比單打「素人」全文搜尋覆蓋更完整）。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_AMATEUR,
   },
   uncensored: {
     key: "uncensored",
     label: "無碼影片",
-    description: "以「無碼」關鍵字搜尋；與官方分類標籤未必完全一致。",
-    mode: "search",
-    searchQuery: "無碼",
+    description:
+      "依 `is_uncensored_leak` 或 `type==uncensored-leak` 篩選後趨勢推薦（對齊目錄欄位，不限於標題是否出現「無碼」）。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_UNCENSORED,
   },
   madou: {
     key: "madou",
     label: "亞洲 AV",
     description:
-      "對齊 missav「麻豆傳媒」分類頁主題；以 Recombee 搜尋「麻豆傳媒」（與官網全文索引未必 1:1，但比單字「麻豆」更贴近該區列表）。",
-    mode: "search",
-    searchQuery: "麻豆傳媒",
+      "依標題欄位（zh／預設 title 等）含「麻豆」篩選後趨勢推薦；較贴近亞洲代理／麻豆主題區塊。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_MADOU,
   },
 };
 

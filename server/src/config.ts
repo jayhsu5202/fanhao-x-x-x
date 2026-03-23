@@ -36,6 +36,26 @@ function resolvePythonPath(): string {
 
 const pythonPath = resolvePythonPath();
 
+/**
+ * 併發相關 env：正整數即採用；`0`、`-1`、`unlimited`、`max`、`infinity` → 程式內上限（65535）。
+ * 非數學上的「無限」，避免開銷過大或檔案描述符耗盡；要更高可改此常數。
+ */
+const CONCURRENCY_CEILING = 65_535;
+
+function parseConcurrencyEnv(raw: string | undefined, fallback: number, minParsed: number): number {
+  const t = (raw ?? "").trim().toLowerCase();
+  if (t === "0" || t === "-1" || t === "unlimited" || t === "max" || t === "infinity") {
+    return CONCURRENCY_CEILING;
+  }
+  if (raw === undefined || raw.trim() === "") {
+    return Math.min(CONCURRENCY_CEILING, Math.max(minParsed, fallback));
+  }
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return Math.min(CONCURRENCY_CEILING, Math.max(minParsed, fallback));
+  if (n <= 0) return CONCURRENCY_CEILING;
+  return Math.min(CONCURRENCY_CEILING, Math.max(minParsed, n));
+}
+
 export const config = {
   port: Number(process.env.PORT) || 3001,
   host: process.env.HOST || "0.0.0.0",
@@ -66,29 +86,14 @@ export const config = {
   /** SQLite（Prisma）；未設 DATABASE_URL 時為 `file:{projectRoot}/data/app.sqlite` */
   databaseUrl: process.env.DATABASE_URL || `file:${path.resolve(defaultDbFile)}`,
   workerScript: path.resolve(__dirname, "..", "..", "scripts", "missav_worker.py"),
-  /** 同時執行的 Python 下載工作數（每個工作一個子程序） */
-  downloadQueueConcurrency: Math.min(
-    16,
-    Math.max(1, Number.parseInt(process.env.DOWNLOAD_QUEUE_CONCURRENCY || "6", 10) || 6)
-  ),
-  /** 同時抓取 MissAV 影片頁 HTML 以解析縮圖的併發（卡片很多時） */
-  thumbHtmlFetchConcurrency: Math.min(
-    48,
-    Math.max(1, Number.parseInt(process.env.THUMB_HTML_FETCH_CONCURRENCY || "24", 10) || 24)
-  ),
-  /** 詳情／預覽等呼叫 `fetchVideoPage` 的全域併發上限（與縮圖佇列分開，避免單頁打爆） */
-  videoPageFetchConcurrency: Math.min(
-    48,
-    Math.max(1, Number.parseInt(process.env.VIDEO_PAGE_FETCH_CONCURRENCY || "20", 10) || 20)
-  ),
-  /** undici 對「同一 origin」可開的併發連線（m3u8 分片、縮圖、MissAV HTML 等共用） */
-  upstreamConnectionsPerOrigin: Math.min(
-    384,
-    Math.max(
-      48,
-      Number.parseInt(process.env.UPSTREAM_CONNECTIONS_PER_ORIGIN || "192", 10) || 192
-    )
-  ),
+  /** 同時執行的 Python 下載工作數（每個工作一個子程序）；見 `parseConcurrencyEnv` */
+  downloadQueueConcurrency: parseConcurrencyEnv(process.env.DOWNLOAD_QUEUE_CONCURRENCY, 6, 1),
+  /** 同時抓取 MissAV 影片頁 HTML 以解析縮圖的併發 */
+  thumbHtmlFetchConcurrency: parseConcurrencyEnv(process.env.THUMB_HTML_FETCH_CONCURRENCY, 24, 1),
+  /** 詳情／預覽等 `fetchVideoPage` 全域併發（與縮圖佇列分開） */
+  videoPageFetchConcurrency: parseConcurrencyEnv(process.env.VIDEO_PAGE_FETCH_CONCURRENCY, 20, 1),
+  /** undici 對「同一 origin」可開的併發連線（m3u8、縮圖、HTML 等共用） */
+  upstreamConnectionsPerOrigin: parseConcurrencyEnv(process.env.UPSTREAM_CONNECTIONS_PER_ORIGIN, 192, 1),
   /** 解析出的封面 CDN URL 在記憶體中的 TTL（毫秒），減少重複打 MissAV 頁。預設 15 分鐘。 */
   thumbParseCacheTtlMs: Math.max(
     60_000,
@@ -109,11 +114,8 @@ export const config = {
     6,
     Math.max(1, Number.parseInt(process.env.RECOMBEE_RETRIES || "3", 10) || 3)
   ),
-  /** undici 對 Recombee 單一 origin 的連線數（連線重用、減少 TLS 握手） */
-  recombeeConnections: Math.min(
-    64,
-    Math.max(4, Number.parseInt(process.env.RECOMBEE_CONNECTIONS || "24", 10) || 24)
-  ),
+  /** undici 對 Recombee 單一 origin 的連線數（連線重用、減少 TLS 握手）；下限 4 */
+  recombeeConnections: parseConcurrencyEnv(process.env.RECOMBEE_CONNECTIONS, 24, 4),
   /**
    * 請求未帶 `limit` 時的預設筆數。`RECOMBEE_FEED_MAX_BATCH`／`FEATURED_MAX_LIMIT` 仍視為此欄位別名。
    */

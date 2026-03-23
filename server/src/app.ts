@@ -27,6 +27,11 @@ import {
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
 import {
+  fetchDirectRecommsForCandidates,
+  itemIdCandidatesFromSearchQuery,
+} from "./lib/recombee-search-direct.js";
+import { searchVariantsForRecall } from "./lib/recombee-search-variants.js";
+import {
   LOCALE_OPTIONS,
   acceptLanguageForLocaleKey,
   resolveMissavBaseFromRequest,
@@ -132,13 +137,14 @@ app.get("/api/search", async (request, reply) => {
   try {
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
-      data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+      /** 番號與 itemId 一致時直查置頂；全文勿加 ReQL filter（交集會漏命中）。 */
+      data = await recombeeSearchFirstPageWithDirectHits(query, limit);
     } else {
       try {
         data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
       } catch (e) {
         if (e instanceof RecombeeHttpError) {
-          data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+          data = await recombeeSearchFirstPageWithDirectHits(query, limit);
         } else {
           throw e;
         }
@@ -169,8 +175,32 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
   return out;
 }
 
+/** 首包：直查 slug／番號命中置頂，再補 SearchItems（count 扣掉直查筆數）；零筆時沿用變體召回。 */
+async function recombeeSearchFirstPageWithDirectHits(query: string, limit: number): Promise<Record<string, unknown>> {
+  const directRows = await fetchDirectRecommsForCandidates(itemIdCandidatesFromSearchQuery(query));
+  const need = Math.max(1, limit - directRows.length);
+  let data = (await recombeeSearch(query, need)) as Record<string, unknown>;
+  let searchRecomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
+  if (searchRecomms.length === 0) {
+    for (const v of searchVariantsForRecall(query)) {
+      if (v === query) continue;
+      const alt = (await recombeeSearch(v, need)) as Record<string, unknown>;
+      const n1 = Array.isArray(alt.recomms) ? alt.recomms.length : 0;
+      if (n1 > 0) {
+        data = alt;
+        searchRecomms = alt.recomms as unknown[];
+        break;
+      }
+    }
+  }
+  const merged = dedupeFeaturedRecomms([...directRows, ...searchRecomms]).slice(0, limit);
+  return { ...data, recomms: merged };
+}
+
+/** Recombee 回傳鍵為 `recommId`（recom**m**Id）；另相容誤拼 `recomId`。 */
 function pickRecomId(data: Record<string, unknown>): string | null {
-  const raw = data.recomId ?? data.recomm_id;
+  const typo = (data as { recomId?: unknown }).recomId;
+  const raw = data.recommId ?? (typeof typo === "string" ? typo : undefined) ?? data.recomm_id;
   return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
 
@@ -250,7 +280,7 @@ app.get("/api/featured", async (request, reply) => {
 
 /**
  * 分類瀏覽（對應前端 /c/jav、/c/amateur 等）。
- * jav → 匿名趨勢；其餘 → Recombee 文字搜尋。
+ * jav → 匿名趨勢；amateur／uncensored／madou → 目錄欄位 ReQL 篩選後趨勢（召回大於純關鍵字搜尋）。
  */
 app.get("/api/browse/:category", async (request, reply) => {
   const raw = (request.params as { category: string }).category?.trim() ?? "";
@@ -269,19 +299,23 @@ app.get("/api/browse/:category", async (request, reply) => {
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
   const forceFresh = q.fresh === "1" || q.fresh === "true";
   try {
-    if (meta.mode === "featured") {
+    if (meta.mode === "featured" || meta.mode === "filtered") {
+      const cf = meta.mode === "filtered" ? meta.catalogFilter?.trim() : "";
+      if (meta.mode === "filtered" && !cf) {
+        return sendError(reply, 500, "CONFIG", "分類缺少 catalogFilter");
+      }
+      const recommendOpts =
+        meta.mode === "filtered" && cf ? { ...FEATURED_TO_USER_OPTS, filter: cf } : FEATURED_TO_USER_OPTS;
+
       let data: Record<string, unknown>;
       if (forceFresh) {
-        data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
-          string,
-          unknown
-        >;
+        data = (await recombeeRecommendItemsToUser("anonymous", limit, recommendOpts)) as Record<string, unknown>;
       } else if (nextRid) {
         try {
           data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
         } catch (e) {
           if (e instanceof RecombeeHttpError) {
-            data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+            data = (await recombeeRecommendItemsToUser("anonymous", limit, recommendOpts)) as Record<
               string,
               unknown
             >;
@@ -290,10 +324,7 @@ app.get("/api/browse/:category", async (request, reply) => {
           }
         }
       } else {
-        data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
-          string,
-          unknown
-        >;
+        data = (await recombeeRecommendItemsToUser("anonymous", limit, recommendOpts)) as Record<string, unknown>;
       }
       const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
       const recomms = dedupeFeaturedRecomms(rawRecomms);
@@ -304,11 +335,15 @@ app.get("/api/browse/:category", async (request, reply) => {
         category: meta.key,
         label: meta.label,
         description: meta.description,
-        source: "featured" as const,
+        source: meta.mode === "filtered" ? ("filtered" as const) : ("featured" as const),
         recomms,
         recomId,
         hasMore,
       };
+    }
+
+    if (meta.mode !== "search") {
+      return sendError(reply, 500, "CONFIG", "未知的分類模式");
     }
     const qtext = (meta.searchQuery ?? "").trim();
     if (!qtext) {
@@ -316,13 +351,13 @@ app.get("/api/browse/:category", async (request, reply) => {
     }
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
-      data = (await recombeeSearch(qtext, limit)) as Record<string, unknown>;
+      data = await recombeeSearchFirstPageWithDirectHits(qtext, limit);
     } else {
       try {
         data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
       } catch (e) {
         if (e instanceof RecombeeHttpError) {
-          data = (await recombeeSearch(qtext, limit)) as Record<string, unknown>;
+          data = await recombeeSearchFirstPageWithDirectHits(qtext, limit);
         } else {
           throw e;
         }
@@ -364,7 +399,7 @@ app.get("/api/recommendations", async (request, reply) => {
     const data = (await recombeeRecommendItemsToItem(itemId, limit + 2)) as Record<string, unknown>;
     const raw = Array.isArray(data.recomms) ? data.recomms : [];
     const recomms = raw.filter((r: { id?: string }) => r?.id && r.id !== itemId).slice(0, limit);
-    return { recomms, recomId: data.recomId ?? null };
+    return { recomms, recomId: pickRecomId(data) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return sendError(reply, 502, "RECOMBEE_ERROR", "關聯推薦失敗", { detail: msg });

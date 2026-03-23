@@ -92,17 +92,48 @@ async function recombeeRequest(url: string, init: { method: "GET" | "POST"; body
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
-export async function recombeeSearch(query: string, count: number): Promise<unknown> {
+export type RecombeeSearchBodyOpts = {
+  /** ReQL：與全文搜尋交集，縮小候選並提高召回相關結果 */
+  filter?: string;
+  booster?: string;
+  /** 專家選項：low 會盡量湊滿 count（預設）；medium/high 可能回傳較少筆。 */
+  minRelevance?: "low" | "medium" | "high";
+};
+
+/** 依 catalog itemId 取得屬性（REST：`GET /{db}/items/{itemId}`）。無此項目時回傳 null。 */
+export async function recombeeGetItem(itemId: string): Promise<Record<string, unknown> | null> {
+  const id = itemId.trim();
+  if (!id) return null;
+  const path = `/items/${encodeURIComponent(id)}`;
+  const signed = signPath(path, PUBLIC_TOKEN);
+  const url = `https://${BASE_HOST}${signed}`;
+  try {
+    const body = await recombeeRequest(url, { method: "GET" });
+    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+    return body as Record<string, unknown>;
+  } catch (e) {
+    if (e instanceof RecombeeHttpError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+export async function recombeeSearch(query: string, count: number, opts?: RecombeeSearchBodyOpts): Promise<unknown> {
   const userId = "anonymous";
   const path = `/search/users/${encodeURIComponent(userId)}/items/`;
   const signed = signPath(path, PUBLIC_TOKEN);
   const url = `https://${BASE_HOST}${signed}`;
-  const body = {
+  const body: Record<string, unknown> = {
     searchQuery: query,
     count,
     cascadeCreate: true,
     returnProperties: true,
   };
+  const f = opts?.filter?.trim();
+  if (f) body.filter = f;
+  const b = opts?.booster?.trim();
+  if (b) body.booster = b;
+  const mr = opts?.minRelevance;
+  if (mr === "low" || mr === "medium" || mr === "high") body.minRelevance = mr;
   return recombeeRequest(url, { method: "POST", body: JSON.stringify(body) });
 }
 
@@ -111,6 +142,9 @@ export type RecommendToUserOpts = {
   rotationRate?: number;
   /** 秒；與 rotationRate 搭配 */
   rotationTime?: number;
+  /** ReQL：只在符合條件的目錄子集內做趨勢推薦（分類頁主力） */
+  filter?: string;
+  booster?: string;
 };
 
 /** 首頁／匿名訪客推薦（與官方站同源 Recombee）。 */
@@ -130,6 +164,10 @@ export async function recombeeRecommendItemsToUser(
   if (opts?.rotationTime != null && Number.isFinite(opts.rotationTime)) {
     params.set("rotationTime", String(opts.rotationTime));
   }
+  const rf = opts?.filter?.trim();
+  if (rf) params.set("filter", rf);
+  const rb = opts?.booster?.trim();
+  if (rb) params.set("booster", rb);
   const path = `/recomms/users/${encodeURIComponent(userId)}/items/?${params.toString()}`;
   const signed = signPath(path, PUBLIC_TOKEN);
   const url = `https://${BASE_HOST}${signed}`;
