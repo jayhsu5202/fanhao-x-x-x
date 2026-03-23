@@ -3,6 +3,13 @@ import PQueue from "p-queue";
 import { config } from "../config.js";
 import { fetchMissavHtml } from "./missav-html-fetch.js";
 
+export {
+  CHROME_LINUX_UA,
+  buildCdnMediaHeaders,
+  buildMissavDocumentHeaders,
+} from "./missav-headers.js";
+export type { MissavDocumentNavKind, UpstreamMediaKind } from "./missav-headers.js";
+
 const videoPageFetchQueue = new PQueue({
   concurrency: config.videoPageFetchConcurrency,
 });
@@ -18,24 +25,6 @@ export function getVideoPageFetchQueueStats(): {
     videoPageFetchQueuePending: videoPageFetchQueue.pending,
   };
 }
-
-/** missav_api/modules/consts.py */
-/** 代理 CDN 片段時使用 */
-export const CDN_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-  Accept: "*/*",
-};
-
-export const MISSAV_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-  "Accept-Language": "en-US,en;q=0.9",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-  "Accept-Encoding": "gzip, deflate, br, zstd",
-  "Cache-Control": "no-cache",
-};
 
 const REGEX_THUMB = /og:image" content="(.*?)cover-n\.jpg/;
 const REGEX_M3U8_JS = /'m3u8(.*?)video/;

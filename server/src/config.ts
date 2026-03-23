@@ -6,6 +6,12 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const projectRoot = path.resolve(__dirname, "..", "..");
+
+const defaultDbFile = path.join(projectRoot, "data", "app.sqlite");
+if (!process.env.DATABASE_URL) {
+  const abs = path.resolve(defaultDbFile);
+  process.env.DATABASE_URL = `file:${abs}`;
+}
 const venvPython = path.join(projectRoot, ".venv", "bin", "python");
 const venvPythonWin = path.join(projectRoot, ".venv", "Scripts", "python.exe");
 const defaultPython = fs.existsSync(venvPython)
@@ -14,11 +20,27 @@ const defaultPython = fs.existsSync(venvPython)
     ? venvPythonWin
     : "python3";
 
+const hasProjectVenv = fs.existsSync(venvPython) || fs.existsSync(venvPythonWin);
+
+function resolvePythonPath(): string {
+  const raw = (process.env.PYTHON_PATH ?? "").trim();
+  if (raw.length === 0) return defaultPython;
+  if (hasProjectVenv) {
+    const base = path.basename(raw).replace(/\.exe$/i, "").toLowerCase();
+    if (base === "python" || base === "python3") {
+      return defaultPython;
+    }
+  }
+  return raw;
+}
+
+const pythonPath = resolvePythonPath();
+
 export const config = {
   port: Number(process.env.PORT) || 3001,
   host: process.env.HOST || "0.0.0.0",
   streamSecret: process.env.STREAM_SECRET || "dev-insecure-change-me",
-  pythonPath: process.env.PYTHON_PATH || defaultPython,
+  pythonPath,
   downloadDir: path.resolve(
     process.env.DOWNLOAD_DIR || path.join(projectRoot, "data", "downloads")
   ),
@@ -41,6 +63,8 @@ export const config = {
    */
   publicBaseUrl: (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, ""),
   projectRoot,
+  /** SQLite（Prisma）；未設 DATABASE_URL 時為 `file:{projectRoot}/data/app.sqlite` */
+  databaseUrl: process.env.DATABASE_URL || `file:${path.resolve(defaultDbFile)}`,
   workerScript: path.resolve(__dirname, "..", "..", "scripts", "missav_worker.py"),
   /** 同時執行的 Python 下載工作數（每個工作一個子程序） */
   downloadQueueConcurrency: Math.min(
@@ -90,9 +114,27 @@ export const config = {
     64,
     Math.max(4, Number.parseInt(process.env.RECOMBEE_CONNECTIONS || "24", 10) || 24)
   ),
-  /** `GET /api/featured` 單次回傳筆數上限（Recombee count） */
-  featuredMaxLimit: Math.min(
-    120,
-    Math.max(20, Number.parseInt(process.env.FEATURED_MAX_LIMIT || "100", 10) || 100)
+  /**
+   * 請求未帶 `limit` 時的預設筆數。`RECOMBEE_FEED_MAX_BATCH`／`FEATURED_MAX_LIMIT` 仍視為此欄位別名。
+   */
+  recombeeFeedDefaultBatch: Math.max(
+    1,
+    Number.parseInt(
+      process.env.RECOMBEE_FEED_DEFAULT_BATCH ||
+        process.env.RECOMBEE_FEED_MAX_BATCH ||
+        process.env.FEATURED_MAX_LIMIT ||
+        "100",
+      10
+    ) || 100
+  ),
+  /**
+   * 單次請求允許的最大筆數（僅防 query 極大值／DoS；實際筆數由前端 `limit` 或預設決定）。
+   */
+  recombeeFeedRequestMax: Math.min(
+    1_000_000,
+    Math.max(
+      8,
+      Number.parseInt(process.env.RECOMBEE_FEED_REQUEST_MAX || "1000000", 10) || 1_000_000
+    )
   ),
 };

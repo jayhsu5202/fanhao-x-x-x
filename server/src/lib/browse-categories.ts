@@ -38,9 +38,10 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   madou: {
     key: "madou",
     label: "亞洲 AV",
-    description: "以「麻豆」關鍵字搜尋國產／亞洲向內容（可依需求改關鍵字）。",
+    description:
+      "對齊 missav「麻豆傳媒」分類頁主題；以 Recombee 搜尋「麻豆傳媒」（與官網全文索引未必 1:1，但比單字「麻豆」更贴近該區列表）。",
     mode: "search",
-    searchQuery: "麻豆",
+    searchQuery: "麻豆傳媒",
   },
 };
 

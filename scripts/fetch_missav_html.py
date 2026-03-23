@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from urllib.parse import urlparse
 
 from missav_api import Client
 
@@ -16,6 +17,9 @@ def main() -> int:
         return 1
     url = sys.argv[1]
     client = Client()
+    parsed = urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        client.core.session.headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
     html = client.core.fetch(url)
     if isinstance(html, bytes):
         sys.stdout.buffer.write(html)

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { config } from "../config.js";
-import { MISSAV_HEADERS } from "./missav-page.js";
+import { buildMissavDocumentHeaders } from "./missav-headers.js";
 import { upstreamFetch } from "./upstream-fetch.js";
 
 const scriptPath = path.join(config.projectRoot, "scripts", "fetch_missav_html.py");
@@ -15,16 +15,19 @@ export async function fetchMissavHtml(pageUrl: string, acceptLanguage?: string):
     return fetchMissavHtmlViaPython(pageUrl);
   }
 
-  const headers = acceptLanguage
-    ? { ...MISSAV_HEADERS, "Accept-Language": acceptLanguage }
-    : { ...MISSAV_HEADERS };
-
-  try {
-    const res = await upstreamFetch(pageUrl, {
+  const headers = buildMissavDocumentHeaders(pageUrl, acceptLanguage, "fromSite");
+  const fetchPage = () =>
+    upstreamFetch(pageUrl, {
       headers,
       signal: AbortSignal.timeout(22_000),
       redirect: "follow",
     });
+
+  try {
+    let res = await fetchPage();
+    if (res.status === 403) {
+      res = await fetchPage();
+    }
     if (res.ok) {
       const text = await res.text();
       if (text.length > 1500 && text.includes("<!DOCTYPE html>")) {

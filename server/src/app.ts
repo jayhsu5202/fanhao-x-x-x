@@ -120,9 +120,11 @@ app.get("/api/search", async (request, reply) => {
   if (!query) {
     return sendError(reply, 400, "BAD_REQUEST", "缺少搜尋關鍵字 query");
   }
-  let limit = q.limit != null ? Number(q.limit) : 20;
-  if (!Number.isFinite(limit)) limit = 20;
-  limit = Math.min(50, Math.max(1, Math.floor(limit)));
+  const def = config.recombeeFeedDefaultBatch;
+  const max = config.recombeeFeedRequestMax;
+  let limit = q.limit != null ? Number(q.limit) : def;
+  if (!Number.isFinite(limit)) limit = def;
+  limit = Math.min(max, Math.max(1, Math.floor(limit)));
   const nextRid =
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
@@ -173,13 +175,13 @@ function pickRecomId(data: Record<string, unknown>): string | null {
 }
 
 /**
- * 以 Recombee 原始 recomms 筆數判斷是否可能還有下一頁（recommend-next／search 後續）。
- * 本批為空、無 recommId、或筆數小於 limit → 視為到底，避免前端無限打 API。
+ * 是否允許前端用同一串 recommId 再請求下一批。
+ * 僅在「無法續撈」（無 recommId 或本批已空）時停；不因本批筆數未滿 limit 而提前宣告到底。
  */
-function recombeeHasMorePages(rawRecomms: unknown[], limit: number, recomId: string | null): boolean {
+function recombeeHasMorePages(rawRecomms: unknown[], _limit: number, recomId: string | null): boolean {
   if (!recomId) return false;
   if (!Array.isArray(rawRecomms) || rawRecomms.length === 0) return false;
-  return rawRecomms.length >= limit;
+  return true;
 }
 
 /** 首頁新串／fresh 時略旋轉，減少與已載入清單重疊（Recombee 文件 rotationRate / rotationTime） */
@@ -187,10 +189,11 @@ const FEATURED_TO_USER_OPTS = { rotationRate: 0.12, rotationTime: 7200 } as cons
 
 app.get("/api/featured", async (request, reply) => {
   const q = request.query as { limit?: string; recommId?: string; cursor?: string; fresh?: string };
-  const cap = config.featuredMaxLimit;
-  let limit = q.limit != null ? Number(q.limit) : Math.min(80, cap);
-  if (!Number.isFinite(limit)) limit = Math.min(80, cap);
-  limit = Math.min(cap, Math.max(4, Math.floor(limit)));
+  const def = config.recombeeFeedDefaultBatch;
+  const max = config.recombeeFeedRequestMax;
+  let limit = q.limit != null ? Number(q.limit) : def;
+  if (!Number.isFinite(limit)) limit = def;
+  limit = Math.min(max, Math.max(4, Math.floor(limit)));
   const nextRid =
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
@@ -254,9 +257,11 @@ app.get("/api/browse/:category", async (request, reply) => {
     return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
   }
   const q = request.query as { limit?: string; recommId?: string; cursor?: string; fresh?: string };
-  let limit = q.limit != null ? Number(q.limit) : 28;
-  if (!Number.isFinite(limit)) limit = 28;
-  limit = Math.min(50, Math.max(4, Math.floor(limit)));
+  const def = config.recombeeFeedDefaultBatch;
+  const max = config.recombeeFeedRequestMax;
+  let limit = q.limit != null ? Number(q.limit) : def;
+  if (!Number.isFinite(limit)) limit = def;
+  limit = Math.min(max, Math.max(4, Math.floor(limit)));
   const nextRid =
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");

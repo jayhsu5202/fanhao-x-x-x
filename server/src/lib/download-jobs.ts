@@ -6,6 +6,8 @@ import path from "node:path";
 import PQueue from "p-queue";
 import { config } from "../config.js";
 import { nestedDownloadRelDir } from "./download-paths.js";
+import { prisma } from "./prisma.js";
+import type { DownloadJob as DbJob } from "@prisma/client";
 
 export type JobStatus = "pending" | "running" | "done" | "error";
 
@@ -20,14 +22,22 @@ export type DownloadJob = {
   createdAt: number;
 };
 
-const jobs = new Map<string, DownloadJob>();
 const queue = new PQueue({ concurrency: config.downloadQueueConcurrency });
 
-export function getJob(id: string): DownloadJob | undefined {
-  return jobs.get(id);
+function rowToJob(row: DbJob): DownloadJob {
+  return {
+    id: row.id,
+    status: row.status as JobStatus,
+    slug: row.slug,
+    quality: row.quality,
+    message: row.message ?? undefined,
+    outputPath: row.outputPath ?? undefined,
+    filename: row.filename ?? undefined,
+    createdAt: row.createdAt.getTime(),
+  };
 }
 
-function outputFileReadable(outputPath: string | undefined): boolean {
+function outputFileReadable(outputPath: string | undefined | null): boolean {
   if (!outputPath) return false;
   try {
     accessSync(outputPath, fsConstants.R_OK);
@@ -37,40 +47,53 @@ function outputFileReadable(outputPath: string | undefined): boolean {
   }
 }
 
-/** 同 slug+quality 已有完成且檔案仍在時重用，避免重複排隊合併 */
-export function findCompletedJobForSlug(slug: string, quality: string): DownloadJob | undefined {
-  let best: DownloadJob | undefined;
-  for (const job of jobs.values()) {
-    if (job.status !== "done" || job.slug !== slug || job.quality !== quality) continue;
-    if (!outputFileReadable(job.outputPath)) continue;
-    if (!best || job.createdAt > best.createdAt) best = job;
-  }
-  return best;
+/** 服務啟動時：先前未結束的佇列／下載視為已中斷（子程序已不存在） */
+export async function markAbortedJobsAfterRestart(): Promise<void> {
+  await prisma.downloadJob.updateMany({
+    where: { status: { in: ["pending", "running"] } },
+    data: { status: "error", message: "服務重啟，請重新下載" },
+  });
 }
 
-/** 進行中或排隊中的同一部影片（取最新一筆） */
-export function findActiveJobForSlug(slug: string, quality: string): DownloadJob | undefined {
-  let best: DownloadJob | undefined;
-  for (const job of jobs.values()) {
-    if (job.status !== "pending" && job.status !== "running") continue;
-    if (job.slug !== slug || job.quality !== quality) continue;
-    if (!best || job.createdAt > best.createdAt) best = job;
-  }
-  return best;
+export async function getJob(id: string): Promise<DownloadJob | undefined> {
+  const row = await prisma.downloadJob.findUnique({ where: { id } });
+  return row ? rowToJob(row) : undefined;
 }
 
-/** 供前端顯示佇列負載（非精確排序，僅統計筆數） */
-export function getDownloadQueueStats(): {
+export async function findCompletedJobForSlug(
+  slug: string,
+  quality: string
+): Promise<DownloadJob | undefined> {
+  const rows = await prisma.downloadJob.findMany({
+    where: { slug, quality, status: "done" },
+    orderBy: { createdAt: "desc" },
+  });
+  for (const row of rows) {
+    if (outputFileReadable(row.outputPath)) return rowToJob(row);
+  }
+  return undefined;
+}
+
+export async function findActiveJobForSlug(
+  slug: string,
+  quality: string
+): Promise<DownloadJob | undefined> {
+  const row = await prisma.downloadJob.findFirst({
+    where: { slug, quality, status: { in: ["pending", "running"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  return row ? rowToJob(row) : undefined;
+}
+
+export async function getDownloadQueueStats(): Promise<{
   concurrency: number;
   pendingJobs: number;
   runningJobs: number;
-} {
-  let pendingJobs = 0;
-  let runningJobs = 0;
-  for (const job of jobs.values()) {
-    if (job.status === "pending") pendingJobs += 1;
-    else if (job.status === "running") runningJobs += 1;
-  }
+}> {
+  const [pendingJobs, runningJobs] = await Promise.all([
+    prisma.downloadJob.count({ where: { status: "pending" } }),
+    prisma.downloadJob.count({ where: { status: "running" } }),
+  ]);
   return {
     concurrency: config.downloadQueueConcurrency,
     pendingJobs,
@@ -78,27 +101,31 @@ export function getDownloadQueueStats(): {
   };
 }
 
-export function createDownloadJob(slug: string, quality: string, missavPageBase?: string): DownloadJob {
+export async function createDownloadJob(
+  slug: string,
+  quality: string,
+  missavPageBase?: string
+): Promise<DownloadJob> {
   const id = randomUUID();
-  const job: DownloadJob = {
-    id,
-    status: "pending",
-    slug,
-    quality,
-    createdAt: Date.now(),
-  };
-  jobs.set(id, job);
+  await prisma.downloadJob.create({
+    data: { id, slug, quality, status: "pending" },
+  });
 
   void queue.add(async () => {
-    const j = jobs.get(id);
-    if (!j) return;
-    j.status = "running";
     const rel = nestedDownloadRelDir(slug);
     const dir = path.join(config.downloadDir, rel, id);
     await fs.mkdir(dir, { recursive: true });
     const outFile = path.join(dir, "video.mp4");
-    j.outputPath = outFile;
-    j.filename = `${slug.replace(/[^a-zA-Z0-9._-]+/g, "_")}.mp4`;
+    const filename = `${slug.replace(/[^a-zA-Z0-9._-]+/g, "_")}.mp4`;
+
+    await prisma.downloadJob.update({
+      where: { id },
+      data: {
+        status: "running",
+        outputPath: outFile,
+        filename,
+      },
+    });
 
     const base = (missavPageBase ?? config.missavBaseUrl).replace(/\/$/, "");
     const pageUrl = `${base}/${slug}`;
@@ -119,45 +146,59 @@ export function createDownloadJob(slug: string, quality: string, missavPageBase?
         stdio: ["pipe", "pipe", "pipe"],
       });
       let stderr = "";
+      let settled = false;
+      const finish = (code: number | null, errMsg?: string) => {
+        if (settled) return;
+        settled = true;
+        void (async () => {
+          if (code === 0) {
+            await prisma.downloadJob.update({
+              where: { id },
+              data: { status: "done", message: "完成" },
+            });
+          } else {
+            await prisma.downloadJob.update({
+              where: { id },
+              data: {
+                status: "error",
+                message: errMsg || stderr.slice(-500) || `程序結束碼 ${code ?? "?"}`,
+              },
+            });
+          }
+          resolve();
+        })();
+      };
       child.stderr?.on("data", (c: Buffer) => {
         stderr += c.toString();
       });
+      child.on("error", (e) => {
+        finish(null, e instanceof Error ? e.message : String(e));
+      });
       child.on("close", (code) => {
-        const jj = jobs.get(id);
-        if (!jj) {
-          resolve();
-          return;
-        }
-        if (code === 0) {
-          jj.status = "done";
-          jj.message = "完成";
-        } else {
-          jj.status = "error";
-          jj.message = stderr.slice(-500) || `程序結束碼 ${code}`;
-        }
-        resolve();
+        finish(code ?? 1);
       });
       child.stdin?.write(payload);
       child.stdin?.end();
     });
   });
 
-  return job;
+  const row = await prisma.downloadJob.findUniqueOrThrow({ where: { id } });
+  return rowToJob(row);
 }
 
-/** 刪除過期 job（24h） */
 export async function pruneOldJobs(): Promise<void> {
   const ttl = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  for (const [id, job] of jobs) {
-    if (now - job.createdAt > ttl) {
-      jobs.delete(id);
-      try {
-        const p = job.outputPath ? path.dirname(job.outputPath) : path.join(config.downloadDir, id);
-        await fs.rm(p, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
+  const cutoff = new Date(Date.now() - ttl);
+  const old = await prisma.downloadJob.findMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+  for (const row of old) {
+    await prisma.downloadJob.delete({ where: { id: row.id } });
+    try {
+      const p = row.outputPath ? path.dirname(row.outputPath) : path.join(config.downloadDir, row.id);
+      await fs.rm(p, { recursive: true, force: true });
+    } catch {
+      /* ignore */
     }
   }
 }
