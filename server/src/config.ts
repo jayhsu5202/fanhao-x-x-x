@@ -36,6 +36,21 @@ function resolvePythonPath(): string {
 
 const pythonPath = resolvePythonPath();
 
+const PINO_LEVELS = new Set([
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+  "silent",
+]);
+
+function parseLogLevel(raw: string | undefined): "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent" {
+  const l = (raw ?? "info").trim().toLowerCase();
+  return (PINO_LEVELS.has(l) ? l : "info") as "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
+}
+
 /**
  * 併發相關 env：正整數即採用；`0`、`-1`、`unlimited`、`max`、`infinity` → 程式內上限（65535）。
  * 非數學上的「無限」，避免開銷過大或檔案描述符耗盡；要更高可改此常數。
@@ -59,6 +74,16 @@ function parseConcurrencyEnv(raw: string | undefined, fallback: number, minParse
 export const config = {
   port: Number(process.env.PORT) || 3001,
   host: process.env.HOST || "0.0.0.0",
+  /** Pino / Fastify：`warn`、`error` 等；預設 `info` */
+  logLevel: parseLogLevel(process.env.LOG_LEVEL),
+  /**
+   * HLS 分片每秒多筆，預設不記錄 `/api/stream` 的 request 完成 log，避免洗版。
+   * 除錯時設 `STREAM_REQUEST_LOG=1`。
+   */
+  streamRouteRequestLog: (() => {
+    const t = (process.env.STREAM_REQUEST_LOG ?? "").trim().toLowerCase();
+    return t === "1" || t === "true" || t === "on" || t === "info";
+  })(),
   streamSecret: process.env.STREAM_SECRET || "dev-insecure-change-me",
   pythonPath,
   downloadDir: path.resolve(

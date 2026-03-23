@@ -88,7 +88,7 @@ function isValidContentSlug(s: string | undefined): s is string {
 }
 
 const app = Fastify({
-  logger: true,
+  logger: { level: config.logLevel },
   bodyLimit: 1024 * 64,
   requestTimeout: 120_000,
 });
@@ -596,90 +596,96 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
   }
 });
 
-app.get("/api/stream", async (request, reply) => {
-  const token = (request.query as { token?: string }).token;
-  if (!token) {
-    return sendError(reply, 400, "NO_TOKEN", "缺少 token");
-  }
-  let payload;
-  try {
-    payload = verifyStreamToken(config.streamSecret, decodeURIComponent(token));
-  } catch {
-    return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
-  }
-
-  if (payload.typ === "segment") {
-    const hit = segmentCache.get(payload.target);
-    if (hit) {
-      reply.header("Content-Type", "application/octet-stream");
-      reply.header("Cache-Control", "public, max-age=60");
-      reply.header("Content-Length", String(hit.length));
-      return reply.send(hit);
+app.get(
+  "/api/stream",
+  {
+    logLevel: config.streamRouteRequestLog ? "info" : "silent",
+  },
+  async (request, reply) => {
+    const token = (request.query as { token?: string }).token;
+    if (!token) {
+      return sendError(reply, 400, "NO_TOKEN", "缺少 token");
     }
-  }
+    let payload;
+    try {
+      payload = verifyStreamToken(config.streamSecret, decodeURIComponent(token));
+    } catch {
+      return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
+    }
 
-  let res: Awaited<ReturnType<typeof upstreamFetch>>;
-  try {
-    res = await upstreamFetch(payload.target, {
-      headers: buildCdnMediaHeaders(`${config.missavBaseUrl}/`, "media"),
-      signal: AbortSignal.timeout(60_000),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return sendError(reply, 502, "UPSTREAM", "無法連線至串流來源", { detail: msg });
-  }
+    if (payload.typ === "segment") {
+      const hit = segmentCache.get(payload.target);
+      if (hit) {
+        reply.header("Content-Type", "application/octet-stream");
+        reply.header("Cache-Control", "public, max-age=60");
+        reply.header("Content-Length", String(hit.length));
+        return reply.send(hit);
+      }
+    }
 
-  if (!res.ok) {
-    return sendError(reply, 502, "UPSTREAM_HTTP", `上游 HTTP ${res.status}`);
-  }
+    let res: Awaited<ReturnType<typeof upstreamFetch>>;
+    try {
+      res = await upstreamFetch(payload.target, {
+        headers: buildCdnMediaHeaders(`${config.missavBaseUrl}/`, "media"),
+        signal: AbortSignal.timeout(60_000),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return sendError(reply, 502, "UPSTREAM", "無法連線至串流來源", { detail: msg });
+    }
 
-  const ct = res.headers.get("content-type") || "";
+    if (!res.ok) {
+      return sendError(reply, 502, "UPSTREAM_HTTP", `上游 HTTP ${res.status}`);
+    }
 
-  if (payload.typ === "segment") {
+    const ct = res.headers.get("content-type") || "";
+
+    if (payload.typ === "segment") {
+      reply.header("Content-Type", ct || "application/octet-stream");
+      reply.header("Cache-Control", "public, max-age=60");
+      /**
+       * 未命中：tee 一路即時轉發（低 TTFB）、一路背景寫入 LRU，下次命中整段回傳。
+       */
+      const len = res.headers.get("content-length");
+      if (len) reply.header("Content-Length", len);
+      if (res.body) {
+        const [toClient, toCache] = res.body.tee();
+        segmentCache.drainTeeBranchToCache(
+          toCache as import("node:stream/web").ReadableStream,
+          payload.target
+        );
+        return reply.send(
+          Readable.fromWeb(toClient as Parameters<typeof Readable.fromWeb>[0], {
+            highWaterMark: 256 * 1024,
+          })
+        );
+      }
+      return reply.send(Buffer.alloc(0));
+    }
+
+    const buf = Buffer.from(await res.arrayBuffer());
+    const text = buf.toString("utf8");
+    const looksLikePlaylist =
+      text.trimStart().startsWith("#EXTM3U") || ct.includes("mpegurl");
+
+    if (looksLikePlaylist && text.includes("#EXTM3U")) {
+      const rewritten = rewritePlaylist(
+        text,
+        payload.target,
+        config.streamSecret,
+        config.publicBaseUrl,
+        payload.exp
+      );
+      reply.header("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
+      reply.header("Cache-Control", "no-cache");
+      return reply.send(rewritten);
+    }
+
     reply.header("Content-Type", ct || "application/octet-stream");
     reply.header("Cache-Control", "public, max-age=60");
-    /**
-     * 未命中：tee 一路即時轉發（低 TTFB）、一路背景寫入 LRU，下次命中整段回傳。
-     */
-    const len = res.headers.get("content-length");
-    if (len) reply.header("Content-Length", len);
-    if (res.body) {
-      const [toClient, toCache] = res.body.tee();
-      segmentCache.drainTeeBranchToCache(
-        toCache as import("node:stream/web").ReadableStream,
-        payload.target
-      );
-      return reply.send(
-        Readable.fromWeb(toClient as Parameters<typeof Readable.fromWeb>[0], {
-          highWaterMark: 256 * 1024,
-        })
-      );
-    }
-    return reply.send(Buffer.alloc(0));
+    return reply.send(buf);
   }
-
-  const buf = Buffer.from(await res.arrayBuffer());
-  const text = buf.toString("utf8");
-  const looksLikePlaylist =
-    text.trimStart().startsWith("#EXTM3U") || ct.includes("mpegurl");
-
-  if (looksLikePlaylist && text.includes("#EXTM3U")) {
-    const rewritten = rewritePlaylist(
-      text,
-      payload.target,
-      config.streamSecret,
-      config.publicBaseUrl,
-      payload.exp
-    );
-    reply.header("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
-    reply.header("Cache-Control", "no-cache");
-    return reply.send(rewritten);
-  }
-
-  reply.header("Content-Type", ct || "application/octet-stream");
-  reply.header("Cache-Control", "public, max-age=60");
-  return reply.send(buf);
-});
+);
 
 app.post("/api/downloads", async (request, reply) => {
   const body = request.body as { slug?: string; quality?: string };
