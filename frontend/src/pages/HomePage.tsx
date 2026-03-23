@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiGet } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
@@ -13,15 +14,7 @@ type FeaturedRes = {
 };
 
 const PAGE_SIZE = 80;
-const MIN_FETCH_GAP_MS = 320;
-
-function docNearBottom(px: number): boolean {
-  const scrollTop =
-    window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
-  const vh = window.innerHeight;
-  const sh = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-  return sh - scrollTop - vh < px;
-}
+const MIN_FETCH_GAP_MS = 450;
 
 function docContentShort(extra = 280): boolean {
   const vh = window.innerHeight;
@@ -31,7 +24,12 @@ function docContentShort(extra = 280): boolean {
 
 function appendUniqueById(prev: RecommItem[], batch: RecommItem[]): { next: RecommItem[]; added: number } {
   const seen = new Set(prev.map((x) => x.id));
-  const add = batch.filter((x) => x?.id && !seen.has(x.id));
+  const add: RecommItem[] = [];
+  for (const x of batch) {
+    if (!x?.id || seen.has(x.id)) continue;
+    seen.add(x.id);
+    add.push(x);
+  }
   if (add.length === 0) return { next: prev, added: 0 };
   return { next: [...prev, ...add], added: add.length };
 }
@@ -54,9 +52,8 @@ export default function HomePage() {
   const recommIdRef = useRef<string | null>(null);
   const canNextRef = useRef(false);
   const lastFetchEndRef = useRef(0);
-  const itemsRef = useRef<RecommItem[]>([]);
+  const feedGenRef = useRef(0);
 
-  itemsRef.current = items;
   recommIdRef.current = recommId;
   canNextRef.current = canRecommendNext;
 
@@ -69,6 +66,7 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+    feedGenRef.current += 1;
     setFeatErr(null);
     setItems([]);
     setRecommId(null);
@@ -81,7 +79,7 @@ export default function HomePage() {
         if (cancelled) return;
         const batch = d.recomms ?? [];
         const rid = d.recomId ?? null;
-        setItems(batch);
+        setItems(appendUniqueById([], batch).next);
         setRecommId(rid);
         const hm =
           typeof d.hasMore === "boolean"
@@ -108,6 +106,7 @@ export default function HomePage() {
     if (loadMoreLock.current || initialLoading) return;
     if (Date.now() - lastFetchEndRef.current < MIN_FETCH_GAP_MS) return;
 
+    const gen = feedGenRef.current;
     loadMoreLock.current = true;
     setLoadingMore(true);
     try {
@@ -117,12 +116,19 @@ export default function HomePage() {
         : `/api/featured?limit=${PAGE_SIZE}&fresh=1`;
 
       const d = await apiGet<FeaturedRes>(url);
+      if (gen !== feedGenRef.current) return;
+
       setFeatErr(null);
 
       const batch = d.recomms ?? [];
-      const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
-      itemsRef.current = next;
-      setItems(next);
+      let newUniqueCount = 0;
+      flushSync(() => {
+        setItems((prev) => {
+          const { next, added } = appendUniqueById(prev, batch);
+          newUniqueCount = added;
+          return next;
+        });
+      });
 
       const rid = d.recomId ?? null;
       setRecommId(rid);
@@ -142,9 +148,11 @@ export default function HomePage() {
         setCanRecommendNext(Boolean(rid && serverHasMore));
       }
     } catch {
-      /* 續載失敗時下次捲動會再試 */
+      /* 略過；使用者再捲動會重試 */
     } finally {
-      lastFetchEndRef.current = Date.now();
+      if (gen === feedGenRef.current) {
+        lastFetchEndRef.current = Date.now();
+      }
       loadMoreLock.current = false;
       setLoadingMore(false);
     }
@@ -160,30 +168,10 @@ export default function HomePage() {
       (entries) => {
         if (entries[0]?.isIntersecting) void loadMore();
       },
-      { root: null, rootMargin: "1200px", threshold: 0 }
+      { root: null, rootMargin: "720px", threshold: 0 }
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [ready, loadMore, items.length]);
-
-  useEffect(() => {
-    if (!ready) return;
-    let t: ReturnType<typeof setTimeout>;
-    const onScroll = () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        if (loadMoreLock.current) return;
-        if (docNearBottom(1400)) void loadMore();
-      }, 48);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    onScroll();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      clearTimeout(t);
-    };
   }, [ready, loadMore, items.length]);
 
   useEffect(() => {

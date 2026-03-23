@@ -117,6 +117,22 @@ app.get("/api/search", async (request, reply) => {
   }
 });
 
+function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (const x of raw) {
+    if (!x || typeof x !== "object") continue;
+    const id = (x as { id?: unknown }).id;
+    if (typeof id !== "string" || id.length === 0 || seen.has(id)) continue;
+    seen.add(id);
+    out.push(x);
+  }
+  return out;
+}
+
+/** 首頁新串／fresh 時略旋轉，減少與已載入清單重疊（Recombee 文件 rotationRate / rotationTime） */
+const FEATURED_TO_USER_OPTS = { rotationRate: 0.12, rotationTime: 7200 } as const;
+
 app.get("/api/featured", async (request, reply) => {
   const q = request.query as { limit?: string; recommId?: string; cursor?: string; fresh?: string };
   const cap = config.featuredMaxLimit;
@@ -131,23 +147,32 @@ app.get("/api/featured", async (request, reply) => {
     let data: Record<string, unknown>;
 
     if (forceNewSession) {
-      data = (await recombeeRecommendItemsToUser("anonymous", limit)) as Record<string, unknown>;
+      data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+        string,
+        unknown
+      >;
     } else if (nextRid) {
       try {
         data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
       } catch (e) {
-        // 同一串續載失敗時改取新首包（不區分 HTTP 狀態碼）
         if (e instanceof RecombeeHttpError) {
-          data = (await recombeeRecommendItemsToUser("anonymous", limit)) as Record<string, unknown>;
+          data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+            string,
+            unknown
+          >;
         } else {
           throw e;
         }
       }
     } else {
-      data = (await recombeeRecommendItemsToUser("anonymous", limit)) as Record<string, unknown>;
+      data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+        string,
+        unknown
+      >;
     }
 
-    const recomms = Array.isArray(data.recomms) ? data.recomms : [];
+    const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
+    const recomms = dedupeFeaturedRecomms(rawRecomms);
     const rawId = data.recomId ?? data.recomm_id;
     const recomId =
       typeof rawId === "string" && rawId.length > 0 ? rawId : null;
