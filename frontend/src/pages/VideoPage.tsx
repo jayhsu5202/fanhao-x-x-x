@@ -13,6 +13,7 @@ import { pollDownloadUntilTerminal, type DownloadQueueInfo, type JobStatusRespon
 import { clearActiveDownload, readActiveDownload, saveActiveDownload } from "../lib/downloadSession";
 import FavoriteHeart from "../components/FavoriteHeart";
 import SiteHeader from "../components/SiteHeader";
+import { hlsConfigProxiedStream } from "../lib/hlsPlayerConfig";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
 import { pickGenresForDetail, pickTitle } from "../lib/recombeeDisplay";
@@ -199,7 +200,7 @@ export default function VideoPage() {
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        enableWorker: true,
+        ...hlsConfigProxiedStream,
         xhrSetup(xhr) {
           xhr.withCredentials = false;
         },
@@ -212,6 +213,16 @@ export default function VideoPage() {
       };
       tryPlay();
       hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+          return;
+        }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          void hls.recoverMediaError();
+        }
+      });
       return;
     }
 

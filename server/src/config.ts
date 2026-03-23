@@ -149,11 +149,11 @@ export const config = {
   })(),
   streamSegmentCacheTtlMs: Math.max(
     30_000,
-    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_TTL_MS || `${3 * 60_000}`, 10) || 3 * 60_000
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_TTL_MS || `${5 * 60_000}`, 10) || 5 * 60_000
   ),
   streamSegmentCacheMaxEntries: Math.max(
     32,
-    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_ENTRIES || "128", 10) || 128
+    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_ENTRIES || "256", 10) || 256
   ),
   streamSegmentCacheMaxBytesPerSegment: Math.max(
     256 * 1024,
