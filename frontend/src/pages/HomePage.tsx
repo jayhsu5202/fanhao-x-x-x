@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiGet } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
@@ -55,7 +54,9 @@ export default function HomePage() {
   const recommIdRef = useRef<string | null>(null);
   const canNextRef = useRef(false);
   const lastFetchEndRef = useRef(0);
+  const itemsRef = useRef<RecommItem[]>([]);
 
+  itemsRef.current = items;
   recommIdRef.current = recommId;
   canNextRef.current = canRecommendNext;
 
@@ -119,14 +120,9 @@ export default function HomePage() {
       setFeatErr(null);
 
       const batch = d.recomms ?? [];
-      let newUniqueCount = 0;
-      flushSync(() => {
-        setItems((prev) => {
-          const { next, added } = appendUniqueById(prev, batch);
-          newUniqueCount = added;
-          return next;
-        });
-      });
+      const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
+      itemsRef.current = next;
+      setItems(next);
 
       const rid = d.recomId ?? null;
       setRecommId(rid);
@@ -135,7 +131,6 @@ export default function HomePage() {
           ? d.hasMore
           : Boolean(rid || batch.length > 0);
 
-      // 同一串若整包都是已看過的 id，改走 fresh；有 recommId 且本次有新增或上游仍給 id 則繼續 next
       if (useNext) {
         const dupOnly = batch.length > 0 && newUniqueCount === 0;
         if (batch.length === 0 || dupOnly || !rid || !serverHasMore) {
@@ -146,8 +141,8 @@ export default function HomePage() {
       } else {
         setCanRecommendNext(Boolean(rid && serverHasMore));
       }
-    } catch (e) {
-      console.warn("[featured loadMore]", e);
+    } catch {
+      /* 續載失敗時下次捲動會再試 */
     } finally {
       lastFetchEndRef.current = Date.now();
       loadMoreLock.current = false;
@@ -228,7 +223,7 @@ export default function HomePage() {
         </form>
         <p className="hero-sub">
           使用上方搜尋會前往<strong> 獨立搜尋頁 </strong>顯示結果。
-          <strong> 語系按鈕 </strong>影響詳情與縮圖。熱門推薦可往下滑載入更多（同一 <code className="inline-code">recommId</code> 續載，必要時 <code className="inline-code">fresh=1</code> 新串）。
+          <strong> 語系按鈕 </strong>影響詳情與縮圖。熱門推薦往下滑會自動載入更多。
         </p>
       </header>
       <main className="main-pad">
