@@ -145,8 +145,9 @@ app.get("/api/search", async (request, reply) => {
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const recomms = dedupeFeaturedRecomms(rawRecomms);
     const recomId = pickRecomId(data);
+    const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
-    return { recomms, recomId, numberNext: data.numberNext ?? null };
+    return { recomms, recomId, hasMore, numberNext: data.numberNext ?? null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return sendError(reply, 502, "RECOMBEE_ERROR", "搜尋服務失敗", { detail: msg });
@@ -169,6 +170,16 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
 function pickRecomId(data: Record<string, unknown>): string | null {
   const raw = data.recomId ?? data.recomm_id;
   return typeof raw === "string" && raw.length > 0 ? raw : null;
+}
+
+/**
+ * 以 Recombee 原始 recomms 筆數判斷是否可能還有下一頁（recommend-next／search 後續）。
+ * 本批為空、無 recommId、或筆數小於 limit → 視為到底，避免前端無限打 API。
+ */
+function recombeeHasMorePages(rawRecomms: unknown[], limit: number, recomId: string | null): boolean {
+  if (!recomId) return false;
+  if (!Array.isArray(rawRecomms) || rawRecomms.length === 0) return false;
+  return rawRecomms.length >= limit;
 }
 
 /** 首頁新串／fresh 時略旋轉，減少與已載入清單重疊（Recombee 文件 rotationRate / rotationTime） */
@@ -215,12 +226,8 @@ app.get("/api/featured", async (request, reply) => {
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const recomms = dedupeFeaturedRecomms(rawRecomms);
     const recomId = pickRecomId(data);
-    const likelyEnd = recomms.length < limit;
-    /**
-     * 匿名推薦商品庫極大；前端以去重累積列表。若 hasMore 隨空批／無 recommId 變 false，
-     * 無限捲動會誤判到底。成功回應一律允許繼續請求（recommend-next 或 fresh 輪替）。
-     */
-    const hasMore = true;
+    const likelyEnd = rawRecomms.length < limit;
+    const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     /** 避免瀏覽器快取同一 URL（尤其 ?fresh=1）導致前端去重後永遠 0 筆新項目、捲動停住 */
     noStoreLocale(reply);
     return {
@@ -283,6 +290,8 @@ app.get("/api/browse/:category", async (request, reply) => {
       }
       const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
       const recomms = dedupeFeaturedRecomms(rawRecomms);
+      const recomId = pickRecomId(data);
+      const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
       noStoreLocale(reply);
       return {
         category: meta.key,
@@ -290,7 +299,8 @@ app.get("/api/browse/:category", async (request, reply) => {
         description: meta.description,
         source: "featured" as const,
         recomms,
-        recomId: pickRecomId(data),
+        recomId,
+        hasMore,
       };
     }
     const qtext = (meta.searchQuery ?? "").trim();
@@ -313,6 +323,8 @@ app.get("/api/browse/:category", async (request, reply) => {
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const recomms = dedupeFeaturedRecomms(rawRecomms);
+    const recomId = pickRecomId(data);
+    const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
     return {
       category: meta.key,
@@ -321,7 +333,8 @@ app.get("/api/browse/:category", async (request, reply) => {
       source: "search" as const,
       searchQuery: qtext,
       recomms,
-      recomId: pickRecomId(data),
+      recomId,
+      hasMore,
       numberNext: data.numberNext ?? null,
     };
   } catch (e) {

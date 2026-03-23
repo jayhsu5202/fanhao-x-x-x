@@ -58,7 +58,8 @@ export default function CategoryPage() {
     [category]
   );
 
-  const { items, initialLoading, loadingMore, err, sentinelRef } = useInfiniteRecombeeFeed({
+  const { items, initialLoading, loadingMore, err, sentinelRef, feedHasMore } = useInfiniteRecombeeFeed({
+    pageSize: CATEGORY_LIMIT,
     resetKey: `${category}|${locale}`,
     enabled: valid,
     getInitialUrl,
@@ -145,6 +146,12 @@ export default function CategoryPage() {
               {loadingMore ? <span className="infinite-loading-line">載入更多…</span> : null}
             </div>
           </div>
+        ) : null}
+
+        {!initialLoading && items.length > 0 && !feedHasMore ? (
+          <p className="msg-muted infinite-feed-end" role="status">
+            已載入本分類全部結果
+          </p>
         ) : null}
 
         <p className="footer-note">僅供合法授權內容使用；分類內容由推薦／搜尋引擎自動產生。</p>

@@ -5,10 +5,11 @@ import type { RecommItem } from "../components/VideoCard";
 export type RecombeeFeedResponse = {
   recomms: RecommItem[];
   recomId?: string | null;
+  /** 後端依 Recombee 本批筆數與 recommId 計算；false 時前端不得再請求 */
+  hasMore?: boolean;
 };
 
 const MIN_FETCH_GAP_MS = 280;
-const MAX_TAIL_ZERO_ADD_STREAK = 48;
 const LOAD_ZONE_PX = 900;
 
 function docContentShort(extra = 280): boolean {
@@ -40,21 +41,28 @@ function pickRid(d: RecombeeFeedResponse): string | null {
   return typeof r === "string" && r.length > 0 ? r : null;
 }
 
+/** 與後端 recombeeHasMorePages 一致；舊版 API 無 hasMore 時用同規則推斷 */
+function readHasMore(d: RecombeeFeedResponse, pageSize: number): boolean {
+  if (typeof d.hasMore === "boolean") return d.hasMore;
+  const len = d.recomms?.length ?? 0;
+  return Boolean(pickRid(d) && len >= pageSize);
+}
+
 /**
- * Recombee 列表無限捲動：IntersectionObserver + 請求結束後若 sentinel 仍在預載區則自動銜接（與首頁相同策略）。
- * URL 建構函式以 ref 讀取，避免父元件每次 render 新函式導致 effect 重跑。
+ * 無限捲動：後端 hasMore 為 false 時停止一切自動載入（IO／tail／短頁填滿）。
  */
 export function useInfiniteRecombeeFeed(options: {
+  pageSize: number;
   resetKey: string;
   enabled?: boolean;
   getInitialUrl: () => string;
   getMoreUrl: (ctx: { useNext: boolean; recommId: string | null }) => string;
   initialErrorLabel: string;
   loadMoreErrorLabel: string;
-  /** 首屏 API 完整 JSON（例如分類頁要 label／description，避免再打第二支請求） */
   onInitialResponse?: (data: unknown) => void;
 }) {
   const {
+    pageSize,
     resetKey,
     enabled = true,
     getInitialUrl,
@@ -77,15 +85,16 @@ export function useInfiniteRecombeeFeed(options: {
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [canRecommendNext, setCanRecommendNext] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(true);
 
   const loadMoreLock = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const recommIdRef = useRef<string | null>(null);
   const canNextRef = useRef(false);
+  const hasMoreRef = useRef(true);
   const lastFetchEndRef = useRef(0);
   const feedGenRef = useRef(0);
   const itemsRef = useRef<RecommItem[]>([]);
-  const zeroAddStreakRef = useRef(0);
   const initialLoadingRef = useRef(true);
   initialLoadingRef.current = initialLoading;
   const loadMoreRef = useRef<(o?: { source?: "intersect" | "shortPage" | "tail" }) => Promise<void>>(async () => {});
@@ -100,10 +109,11 @@ export function useInfiniteRecombeeFeed(options: {
       setItems([]);
       setRecommId(null);
       setCanRecommendNext(false);
+      setFeedHasMore(true);
+      hasMoreRef.current = true;
       setInitialLoading(false);
       setErr(null);
       loadMoreLock.current = false;
-      zeroAddStreakRef.current = 0;
       return;
     }
 
@@ -113,9 +123,10 @@ export function useInfiniteRecombeeFeed(options: {
     setItems([]);
     setRecommId(null);
     setCanRecommendNext(false);
+    setFeedHasMore(true);
+    hasMoreRef.current = true;
     setInitialLoading(true);
     loadMoreLock.current = false;
-    zeroAddStreakRef.current = 0;
 
     const url = getInitialUrlRef.current();
     apiGet<RecombeeFeedResponse>(url)
@@ -124,14 +135,19 @@ export function useInfiniteRecombeeFeed(options: {
         onInitialResponseRef.current?.(d);
         const batch = d.recomms ?? [];
         const rid = pickRid(d);
+        const hm = readHasMore(d, pageSize);
+        hasMoreRef.current = hm;
+        setFeedHasMore(hm);
         setItems(appendUniqueById([], batch).next);
         setRecommId(rid);
-        setCanRecommendNext(Boolean(rid));
+        setCanRecommendNext(hm && Boolean(rid));
       })
       .catch((e) => {
         if (!cancelled) {
           setItems([]);
           setErr(e instanceof Error ? e.message : initialErrorLabel);
+          hasMoreRef.current = false;
+          setFeedHasMore(false);
         }
       })
       .finally(() => {
@@ -141,16 +157,14 @@ export function useInfiniteRecombeeFeed(options: {
     return () => {
       cancelled = true;
     };
-  }, [resetKey, enabled, initialErrorLabel]);
+  }, [resetKey, enabled, initialErrorLabel, pageSize]);
 
   const loadMore = useCallback(
     async (opts?: { source?: "intersect" | "shortPage" | "tail" }) => {
       if (!enabled) return;
+      if (!hasMoreRef.current) return;
       if (loadMoreLock.current || initialLoading) return;
       if (Date.now() - lastFetchEndRef.current < MIN_FETCH_GAP_MS) return;
-      if (opts?.source === "intersect" || opts?.source === "shortPage") {
-        zeroAddStreakRef.current = 0;
-      }
 
       const gen = feedGenRef.current;
       loadMoreLock.current = true;
@@ -173,9 +187,14 @@ export function useInfiniteRecombeeFeed(options: {
         setItems(next);
 
         const rid = pickRid(d);
+        const hm = readHasMore(d, pageSize);
+        hasMoreRef.current = hm;
+        setFeedHasMore(hm);
         setRecommId(rid);
 
-        if (useNext) {
+        if (!hm) {
+          setCanRecommendNext(false);
+        } else if (useNext) {
           const dupOnly = batch.length > 0 && newUniqueCount === 0;
           const emptyBatch = batch.length === 0;
           if (emptyBatch || dupOnly || !rid) setCanRecommendNext(false);
@@ -183,21 +202,21 @@ export function useInfiniteRecombeeFeed(options: {
         } else {
           setCanRecommendNext(Boolean(rid));
         }
-
-        if (newUniqueCount === 0) zeroAddStreakRef.current += 1;
-        else zeroAddStreakRef.current = 0;
       } catch (e) {
         if (gen === feedGenRef.current && itemsRef.current.length > 0) {
           setErr(e instanceof Error ? e.message : loadMoreErrorLabel);
         }
+        hasMoreRef.current = false;
+        setFeedHasMore(false);
+        setCanRecommendNext(false);
       } finally {
         if (gen === feedGenRef.current) lastFetchEndRef.current = Date.now();
         loadMoreLock.current = false;
         setLoadingMore(false);
-        if (fetchOk && gen === feedGenRef.current) {
+        if (fetchOk && gen === feedGenRef.current && hasMoreRef.current) {
           window.setTimeout(() => {
             if (feedGenRef.current !== gen || loadMoreLock.current || initialLoadingRef.current) return;
-            if (zeroAddStreakRef.current > MAX_TAIL_ZERO_ADD_STREAK) return;
+            if (!hasMoreRef.current) return;
             const el = sentinelRef.current;
             if (el && isSentinelInLoadZone(el)) {
               void loadMoreRef.current({ source: "tail" });
@@ -206,7 +225,7 @@ export function useInfiniteRecombeeFeed(options: {
         }
       }
     },
-    [enabled, initialLoading, loadMoreErrorLabel]
+    [enabled, initialLoading, loadMoreErrorLabel, pageSize]
   );
 
   loadMoreRef.current = loadMore;
@@ -215,24 +234,24 @@ export function useInfiniteRecombeeFeed(options: {
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !ready) return;
+    if (!el || !ready || !hasMoreRef.current) return;
 
     const obs = new IntersectionObserver(
       (entries) => {
+        if (!hasMoreRef.current) return;
         if (entries[0]?.isIntersecting) void loadMore({ source: "intersect" });
       },
       { root: null, rootMargin: `${LOAD_ZONE_PX}px 0px`, threshold: 0 }
     );
     obs.observe(el);
     return () => obs.disconnect();
-    /** 勿依賴 items.length：每載入一頁就 disconnect 會重掛 IO，易造成重複觸發與版面抖動 */
-  }, [ready, loadMore]);
+  }, [ready, loadMore, feedHasMore]);
 
   useEffect(() => {
-    if (!ready || loadingMore) return;
+    if (!ready || loadingMore || !hasMoreRef.current) return;
     if (!docContentShort(240)) return;
     void loadMore({ source: "shortPage" });
-  }, [ready, loadingMore, items.length, loadMore]);
+  }, [ready, loadingMore, items.length, loadMore, feedHasMore]);
 
   return {
     items,
@@ -240,5 +259,7 @@ export function useInfiniteRecombeeFeed(options: {
     loadingMore,
     err,
     sentinelRef,
+    /** 後端宣告尚可能有下一頁；false 時請勿再觸發載入 */
+    feedHasMore,
   };
 }

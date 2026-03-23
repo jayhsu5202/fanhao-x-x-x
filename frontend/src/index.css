@@ -813,6 +813,12 @@ code.inline-code {
   color: var(--muted);
 }
 
+.infinite-feed-end {
+  text-align: center;
+  padding: 0.85rem 0 0.25rem;
+  font-size: 0.86rem;
+}
+
 .category-scroll-hint {
   margin: 0.35rem 0 0.75rem;
   font-size: 0.9rem;

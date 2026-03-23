@@ -33,7 +33,8 @@ export default function SearchResultsPage() {
     [trimmed]
   );
 
-  const { items, initialLoading, loadingMore, err, sentinelRef } = useInfiniteRecombeeFeed({
+  const { items, initialLoading, loadingMore, err, sentinelRef, feedHasMore } = useInfiniteRecombeeFeed({
+    pageSize: SEARCH_PAGE_LIMIT,
     resetKey: `${locale}|${trimmed}`,
     enabled: hasQuery,
     getInitialUrl,
@@ -132,6 +133,11 @@ export default function SearchResultsPage() {
                 {loadingMore ? <span className="infinite-loading-line">載入更多…</span> : null}
               </div>
             </div>
+            {!feedHasMore ? (
+              <p className="msg-muted infinite-feed-end" role="status">
+                已載入全部搜尋結果
+              </p>
+            ) : null}
           </>
         ) : null}
 

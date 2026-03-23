@@ -24,7 +24,8 @@ export default function HomePage() {
     []
   );
 
-  const { items, initialLoading, loadingMore, err: featErr, sentinelRef } = useInfiniteRecombeeFeed({
+  const { items, initialLoading, loadingMore, err: featErr, sentinelRef, feedHasMore } = useInfiniteRecombeeFeed({
+    pageSize: PAGE_SIZE,
     resetKey: locale,
     getInitialUrl,
     getMoreUrl,
@@ -103,6 +104,11 @@ export default function HomePage() {
           {!initialLoading && items.length === 0 && !featErr ? (
             <p className="msg-muted" style={{ padding: "1rem 0" }}>
               暫無推薦項目。
+            </p>
+          ) : null}
+          {!initialLoading && items.length > 0 && !feedHasMore ? (
+            <p className="msg-muted infinite-feed-end" role="status">
+              已載入全部推薦
             </p>
           ) : null}
         </section>
