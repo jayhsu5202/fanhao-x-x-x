@@ -71,6 +71,7 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "優先顯示帶中文字幕的熱門片單。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_CHINESE_SUBTITLE,
+    searchQuery: "中文字幕",
   },
   {
     categoryKey: "jav",
@@ -95,14 +96,15 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "素人題材的熱門推薦。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_AMATEUR,
+    searchQuery: "素人",
   },
   {
     categoryKey: "amateur",
     key: "fc2",
     label: "FC2",
     description: "聚焦 FC2 系列與相關作品。",
-    mode: "filtered",
-    catalogFilter: andFilter(RECOMBEE_FILTER_AMATEUR, RECOMBEE_FILTER_FC2),
+    mode: "search",
+    searchQuery: "FC2",
   },
   {
     categoryKey: "amateur",
@@ -111,6 +113,7 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "優先顯示帶中文字幕的素人內容。",
     mode: "filtered",
     catalogFilter: andFilter(RECOMBEE_FILTER_AMATEUR, RECOMBEE_FILTER_CHINESE_SUBTITLE),
+    searchQuery: "素人 中文字幕",
   },
   {
     categoryKey: "uncensored",
@@ -119,6 +122,7 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "無碼流出與相關熱門片單。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_UNCENSORED,
+    searchQuery: "無碼流出",
   },
   {
     categoryKey: "uncensored",
@@ -127,6 +131,7 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "帶中文字幕的無碼相關內容。",
     mode: "filtered",
     catalogFilter: andFilter(RECOMBEE_FILTER_UNCENSORED, RECOMBEE_FILTER_CHINESE_SUBTITLE),
+    searchQuery: "無碼 中文字幕",
   },
   {
     categoryKey: "uncensored",
@@ -143,6 +148,7 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     description: "亞洲與麻豆主題的熱門內容。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_MADOU,
+    searchQuery: "麻豆傳媒",
   },
   {
     categoryKey: "madou",

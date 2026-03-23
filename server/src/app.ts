@@ -473,6 +473,30 @@ async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: B
       const recomms = dedupeFeaturedRecomms(rawRecomms);
       const recomId = pickRecomId(data);
       const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
+      if (recomms.length === 0 && !nextRid && meta.searchQuery?.trim()) {
+        const fallbackQuery = meta.searchQuery.trim();
+        const fallback = await recombeeSearchFirstPageWithRecall(fallbackQuery, limit);
+        const fallbackRaw = Array.isArray(fallback.recomms) ? fallback.recomms : [];
+        const fallbackDeduped = dedupeFeaturedRecomms(fallbackRaw);
+        const fallbackOrdered = orderSearchRecommsForMode(fallbackQuery, fallbackDeduped, sortMode);
+        const fallbackRecomId = pickRecomId(fallback);
+        const fallbackHasMore =
+          fallbackOrdered.length > limit || recombeeHasMorePages(fallbackRaw, limit, fallbackRecomId);
+        noStoreLocale(reply);
+        return {
+          category: meta.categoryKey,
+          subcategory: meta.subcategoryKey ?? null,
+          label: meta.label,
+          description: meta.description,
+          source: "search" as const,
+          searchQuery: fallbackQuery,
+          recomms: fallbackOrdered.slice(0, limit),
+          recomId: fallbackRecomId,
+          hasMore: fallbackHasMore,
+          sort: sortMode,
+          numberNext: fallback.numberNext ?? null,
+        };
+      }
       noStoreLocale(reply);
       return {
         category: meta.categoryKey,

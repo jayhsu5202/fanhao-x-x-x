@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard from "../components/VideoCard";
 import { getNavCategory, getNavSubcategory, isNavCategoryKey } from "../constants/navCategories";
@@ -30,7 +30,9 @@ const CATEGORY_LIMIT = 50;
 
 export default function CategoryPage() {
   const { locale } = useMissavLocale();
-  const { category = "", subcategory = "" } = useParams<{ category: string; subcategory?: string }>();
+  const { category = "", subcategory: subcategoryParam = "" } = useParams<{ category: string; subcategory?: string }>();
+  const [searchParams] = useSearchParams();
+  const subcategory = (searchParams.get("sub") ?? subcategoryParam ?? "").trim();
   const validCategory = isNavCategoryKey(category);
   const categoryNav = validCategory ? getNavCategory(category) : undefined;
   const subcategoryNav = validCategory && subcategory ? getNavSubcategory(category, subcategory) : undefined;
@@ -142,13 +144,13 @@ export default function CategoryPage() {
           {navItems.length > 0 ? (
             <nav className="category-submenu" aria-label={subcategory ? "同分類切換" : "此分類子選單"}>
               {navItems.map((item) => {
-                const to = `/c/${encodeURIComponent(category)}/${encodeURIComponent(item.key)}`;
+                const safeTo = `/c/${encodeURIComponent(category)}?sub=${encodeURIComponent(item.key)}`;
                 const active = subcategory ? item.key === subcategory : false;
                 return (
                   <Link
                     key={`${item.key}-${item.label}`}
                     className={`category-submenu-link${active ? " is-active" : ""}`}
-                    to={to}
+                    to={safeTo}
                     title={item.description}
                   >
                     {item.label}
