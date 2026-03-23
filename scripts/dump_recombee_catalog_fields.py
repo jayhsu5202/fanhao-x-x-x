@@ -129,6 +129,32 @@ def main() -> int:
             "example": ent["example"],
         }
 
+    # 與 Recombee 無關：導覽對照用（瀏覽器實測 missav.ws，2026-03-23）。重跑 dump 會一併寫入。
+    official_nav_reference: dict[str, Any] = {
+        "verifiedAt": "2026-03-23",
+        "defaultHost": "https://missav.ws",
+        "notes": [
+            "官網頁尾「影片／搜尋」多為固定路徑列表＋分頁，與本站 Recombee featured/search 不同源；筆數無法靠 values 欄位對齊。",
+            "本站前端導覽僅 SPA（/search、/c/*）；下表 paths 僅供與官網對照，非導覽實作。",
+            "繁中站實測 /search?q= 回 404；關鍵字搜尋可用 /cn?q=（例：FC2）。",
+            "女優為 /actresses；/actors 為男優。/amateur、/uncensored 路徑為 404，勿當官網入口。",
+            "類型「素人」可由 /genres/%E7%B4%A0%E4%BA%BA 進入（會轉到 /dm*/genres/…）。",
+            "麻豆列表 /madou 會轉到 /dm35/madou。",
+        ],
+        "paths": {
+            "recent": "/new",
+            "release": "/release",
+            "uncensored_leak": "/uncensored-leak",
+            "chinese_subtitle": "/chinese-subtitle",
+            "actresses": "/actresses",
+            "genres_index": "/genres",
+            "makers": "/makers",
+            "genre_amateur": "/genres/%E7%B4%A0%E4%BA%BA",
+            "search_fc2": "/cn?q=FC2",
+            "madou": "/madou",
+        },
+    }
+
     payload = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "recommTopLevelKeys": sorted({k for r in recomms for k in r.keys() if isinstance(r, dict)}),
@@ -136,6 +162,7 @@ def main() -> int:
         "valueKeys": keys_out,
         "sources": [s[0] for s in samples],
         "itemsSampled": len(recomms),
+        "officialNavReference": official_nav_reference,
     }
 
     text = json.dumps(payload, ensure_ascii=False, indent=2)

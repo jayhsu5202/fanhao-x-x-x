@@ -80,11 +80,12 @@ python3 scripts/dump_recombee_catalog_fields.py
 - `GET /api/search?query=&limit=` — Recombee 搜尋；`limit` 預設為 `RECOMBEE_FEED_DEFAULT_BATCH`（預設 100），上限 `RECOMBEE_FEED_REQUEST_MAX`；**`values` 內無圖片欄位**
 - `GET /api/featured?limit=&recommId=&cursor=&fresh=` — 首頁匿名趨勢、**持續載入**：
   1. **首屏**：只帶 `limit`（未帶時預設 **`RECOMBEE_FEED_DEFAULT_BATCH`**，預設 100）→ `RecommendItemsToUser`。
-  2. **同一串下一頁**：`recommId` 或 `cursor`（上一則的 `recomId`）→ `RecommendNextItems`。
-  3. **`fresh=1`**：強制再打一次 `RecommendItemsToUser`（新串），與 `recommId` 並存時以 `fresh` 為準；首頁在當前串無法續時用此接續請求。
-  4. **前端**：同一串用 `recommId` 續載；需要時改打 `fresh=1` 新串；列表資料不設總筆數上限。請求節流約 280ms（見 `useInfiniteRecombeeFeed`）。
-  5. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 在**本批有項目**或**仍有 `recommId` 可 next** 時為 `true`（首頁即使暫無 `recommId` 仍可靠 `fresh=1` 續載）；僅**本批空且無 `recommId`** 為 `false`。不因未滿 `limit` 提早停。
-- `GET /api/browse/:category?limit=` — 分類：`jav`（日本 AV／趨勢）、`amateur`（素人）、`uncensored`（無碼）、`madou`（亞洲，關鍵字「麻豆」）
+  2. **同一串下一頁**：`recommId` 或 `cursor`（上一則回應的 `recommId`）→ `RecommendNextItems`。
+  3. **`fresh=1`**：強制再打一次 `RecommendItemsToUser`／`Search`（新串），與 `recommId` 並存時以 `fresh` 為準；首頁在當前串無法續時用此接續請求。
+  4. **Recombee 的 session 在欄位 `recommId`（recom**m**Id）**；本站回應 JSON 仍用鍵名 `recomId` 給前端。解析 Recombee 時勿誤用 `recomId` 當來源鍵（會一直是 `undefined`），否則搜尋無法 `RecommendNextItems` 續頁。
+  5. **前端**：同一串用 `recommId` 續載；需要時改打 `fresh=1` 新串；列表資料不設總筆數上限。請求節流約 280ms（見 `useInfiniteRecombeeFeed`）。
+  6. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 在**本批有項目**或**仍有 `recommId` 可 next** 時為 `true`（首頁即使暫無 `recommId` 仍可靠 `fresh=1` 續載）；僅**本批空且無 `recommId`** 為 `false`。不因未滿 `limit` 提早停。
+- `GET /api/browse/:category?limit=` — `jav`＝全站趨勢；`amateur`／`uncensored`／`madou`＝**ReQL 目錄篩選**後趨勢（`server/src/lib/recombee-catalog-filters.ts`），回應 `source` 為 `filtered` 或 `featured`
 - `GET /api/recommendations?itemId=&limit=` — 詳情頁關聯推薦
 - `GET /api/preview/:slug` — 只抓影片頁並回傳 `og:image` 縮圖 URL（除錯／第三方用）
 - `GET /api/thumbnail/:slug` — **同源代理封面圖**（供前端 `<img>`，避免 CDN hotlink）

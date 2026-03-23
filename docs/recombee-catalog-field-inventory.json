@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T03:45:00Z",
+  "generatedAt": "2026-03-23T04:10:57Z",
   "recommTopLevelKeys": [
     "id",
     "values"
@@ -12,7 +12,7 @@
         "list[str]"
       ],
       "example": [
-        "細田あつし"
+        "黒井ゆう"
       ]
     },
     "actresses": {
@@ -21,8 +21,8 @@
         "list[str]"
       ],
       "example": [
-        "翔田千里",
         "小早川怜子",
+        "翔田千里",
         "推川ゆうり"
       ]
     },
@@ -59,12 +59,12 @@
         "list[str]"
       ],
       "example": [
-        "ドラマ",
-        "熟女",
-        "お母さん",
-        "独占配信",
+        "義母",
         "人妻・主婦",
-        "義母"
+        "お母さん",
+        "熟女",
+        "独占配信",
+        "ドラマ"
       ]
     },
     "has_chinese_subtitle": {
@@ -124,11 +124,11 @@
         "list[str]"
       ],
       "example": [
+        "後に",
+        "美しいお尻",
+        "パイズリ",
         "ライディングポジション",
         "巨乳",
-        "美しいお尻",
-        "後に",
-        "パイズリ",
         "タイの女の子",
         "エレファントメディア",
         "ふしだらな女"
@@ -224,5 +224,29 @@
     "search:素人",
     "featured:anonymous"
   ],
-  "itemsSampled": 60
+  "itemsSampled": 60,
+  "officialNavReference": {
+    "verifiedAt": "2026-03-23",
+    "defaultHost": "https://missav.ws",
+    "notes": [
+      "官網頁尾「影片／搜尋」多為固定路徑列表＋分頁，與本站 Recombee featured/search 不同源；筆數無法靠 values 欄位對齊。",
+      "本站前端導覽僅 SPA（/search、/c/*）；下表 paths 僅供與官網對照，非導覽實作。",
+      "繁中站實測 /search?q= 回 404；關鍵字搜尋可用 /cn?q=（例：FC2）。",
+      "女優為 /actresses；/actors 為男優。/amateur、/uncensored 路徑為 404，勿當官網入口。",
+      "類型「素人」可由 /genres/%E7%B4%A0%E4%BA%BA 進入（會轉到 /dm*/genres/…）。",
+      "麻豆列表 /madou 會轉到 /dm35/madou。"
+    ],
+    "paths": {
+      "recent": "/new",
+      "release": "/release",
+      "uncensored_leak": "/uncensored-leak",
+      "chinese_subtitle": "/chinese-subtitle",
+      "actresses": "/actresses",
+      "genres_index": "/genres",
+      "makers": "/makers",
+      "genre_amateur": "/genres/%E7%B4%A0%E4%BA%BA",
+      "search_fc2": "/cn?q=FC2",
+      "madou": "/madou"
+    }
+  }
 }
