@@ -113,6 +113,18 @@ export default function VideoPage() {
     setPlaybackStarted(false);
     setPlayerErr(null);
     setFavorited(null);
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      const v = videoRef.current;
+      if (v) {
+        v.pause();
+        v.removeAttribute("src");
+        v.load();
+      }
+    };
   }, [slug]);
 
   useEffect(() => {
@@ -166,20 +178,15 @@ export default function VideoPage() {
     };
   }, [slug, data, locale]);
 
-  useEffect(() => {
-    const el = videoRef.current;
-    const raw = data?.m3u8_play_url;
-    if (!playbackStarted || !el || !raw) return undefined;
-
+  /**
+   * 須在使用者點擊的同步堆疊內呼叫 play()（尤其 iOS Safari），不可等到 useEffect／MANIFEST_PARSED 才 play。
+   */
+  function attachStreamAndPlayFromUserGesture(el: HTMLVideoElement, url: string): void {
     setPlayerErr(null);
-    const url = resolveMediaUrl(raw);
-
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
-
-    let cleaned = false;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -191,37 +198,22 @@ export default function VideoPage() {
       hlsRef.current = hls;
       hls.loadSource(url);
       hls.attachMedia(el);
-      const onParsed = () => {
-        if (cleaned) return;
+      const tryPlay = () => {
         void el.play().catch(() => {});
       };
-      hls.on(Hls.Events.MANIFEST_PARSED, onParsed);
-      return () => {
-        cleaned = true;
-        hls.off(Hls.Events.MANIFEST_PARSED, onParsed);
-        hls.destroy();
-        hlsRef.current = null;
-      };
+      tryPlay();
+      hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
+      return;
     }
 
     if (el.canPlayType("application/vnd.apple.mpegurl")) {
       el.src = url;
-      const onMeta = () => {
-        if (cleaned) return;
-        void el.play().catch(() => {});
-      };
-      el.addEventListener("loadedmetadata", onMeta, { once: true });
-      return () => {
-        cleaned = true;
-        el.removeEventListener("loadedmetadata", onMeta);
-        el.removeAttribute("src");
-        el.load();
-      };
+      void el.play().catch(() => {});
+      return;
     }
 
     setPlayerErr("此瀏覽器無法播放 HLS");
-    return undefined;
-  }, [playbackStarted, data?.m3u8_play_url]);
+  }
 
   useEffect(() => {
     downloadKickRef.current = 0;
@@ -547,7 +539,13 @@ export default function VideoPage() {
                   <button
                     type="button"
                     className="player-start-overlay"
-                    onClick={() => setPlaybackStarted(true)}
+                    onClick={() => {
+                      const el = videoRef.current;
+                      const raw = data.m3u8_play_url;
+                      if (!el || !raw) return;
+                      attachStreamAndPlayFromUserGesture(el, resolveMediaUrl(raw));
+                      setPlaybackStarted(true);
+                    }}
                     aria-label="開始播放影片"
                   >
                     <span className="player-start-icon" aria-hidden>
@@ -735,7 +733,7 @@ export default function VideoPage() {
             </div>
             <div className="grid-cards grid-cards-related">
               {related.map((it) => (
-                <VideoCard key={`${it.id}-${locale}`} item={it} thumbLoading="lazy" showFavoriteHeart />
+                <VideoCard key={`${it.id}-${locale}`} item={it} showFavoriteHeart />
               ))}
             </div>
           </section>

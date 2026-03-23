@@ -1,7 +1,18 @@
 /**
- * 頂層分類 + 子選單（對齊 missav 行為：主項進分類頁，子項多為關鍵字搜尋）。
+ * 頂層分類 + 子選單：一律本站 SPA（`/c/*`、`/search?q=`），不開外部 MissAV 分頁。
  */
-export const NAV_MENU = [
+export type NavCategoryKey = "jav" | "amateur" | "uncensored" | "madou";
+
+export type NavMenuChild = { label: string; to: string };
+
+export type NavMenuItem = {
+  key: NavCategoryKey;
+  label: string;
+  to: string;
+  children: readonly NavMenuChild[];
+};
+
+export const NAV_MENU: readonly NavMenuItem[] = [
   {
     key: "jav",
     label: "觀看日本 AV",
@@ -41,24 +52,13 @@ export const NAV_MENU = [
     label: "亞洲 AV",
     to: "/c/madou",
     children: [
-      { label: "麻豆傳媒（同分類列表）", to: "/c/madou" },
-      { label: "麻豆傳媒（搜尋）", to: "/search?q=麻豆傳媒" },
+      { label: "亞洲精選", to: "/c/madou" },
+      { label: "麻豆傳媒", to: "/search?q=麻豆傳媒" },
       { label: "國產", to: "/search?q=國產" },
       { label: "MD", to: "/search?q=MD" },
     ],
   },
-] as const;
-
-export type NavCategoryKey = (typeof NAV_MENU)[number]["key"];
-
-export type NavMenuChild = { label: string; to: string };
-
-export type NavMenuItem = {
-  key: NavCategoryKey;
-  label: string;
-  to: string;
-  children: readonly NavMenuChild[];
-};
+];
 
 export const NAV_CATEGORIES = NAV_MENU.map((m) => ({ key: m.key, label: m.label, to: m.to }));
 

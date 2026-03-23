@@ -327,23 +327,6 @@ code.inline-code {
   background: rgba(232, 197, 71, 0.1);
 }
 
-/* 手機選單：摺疊子項 */
-.site-nav-panel-lang {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.5rem 0.85rem 0.75rem;
-  border-bottom: 1px solid var(--stroke);
-  margin-bottom: 0.35rem;
-}
-
-.site-nav-panel-lang-label {
-  font-size: clamp(0.78rem, 0.25vw + 0.72rem, 0.86rem);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-}
-
 /* 手機：分區標題 + 子連結一律可見（點一次即 /c/* 或 /search，無需先展開） */
 .site-nav-mobile-divider-label {
   margin: 0.5rem 0 0.25rem;
@@ -946,10 +929,18 @@ code.inline-code {
   z-index: 2;
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.3rem;
+  pointer-events: none;
+}
+
+.card-thumb-badges-trail {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: flex-end;
   gap: 0.25rem;
-  pointer-events: none;
 }
 
 .card-meta-badge {
@@ -965,6 +956,19 @@ code.inline-code {
 
 .card-meta-badge-sub {
   background: rgba(180, 60, 80, 0.88);
+}
+
+/* 左下：無碼／流出（catalog is_uncensored_leak、type） */
+.card-meta-badge-uncensored {
+  align-self: flex-end;
+  padding: 0.18rem 0.5rem 0.14rem;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, rgba(220, 160, 40, 0.95), rgba(160, 100, 20, 0.92));
+  border: 1px solid rgba(255, 220, 140, 0.35);
+  border-bottom: none;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
 }
 
 .card-chip-row {

@@ -93,7 +93,7 @@ export default function HomePage() {
             <div className="featured-matrix featured-matrix--home" aria-busy={loadingMore}>
               {items.map((it) => (
                 <div key={`${it.id}-${locale}`} className="featured-card-slot">
-                  <VideoCard item={it} thumbLoading="lazy" showFavoriteHeart />
+                  <VideoCard item={it} showFavoriteHeart />
                 </div>
               ))}
               <div ref={sentinelRef} className="featured-infinite-sentinel infinite-sentinel-footer" aria-hidden>

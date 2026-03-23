@@ -71,7 +71,6 @@ export default function FavoritesPage() {
                 <div key={row.slug} className="favorites-row-slot">
                   <VideoCard
                     item={rec}
-                    thumbLoading="lazy"
                     showFavoriteHeart
                     initialFavorited
                     onFavoriteRemoved={() => void removeSlug(row.slug)}

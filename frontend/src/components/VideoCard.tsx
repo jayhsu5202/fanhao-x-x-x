@@ -37,6 +37,21 @@ function formatDurationSec(seconds: unknown): string | null {
 
 const LIST_CHIPS_MAX = 3;
 
+/**
+ * Recombee：`is_uncensored_leak`、`type`（如 uncensored-leak）。
+ * 左下角 tab 角標用；無則不顯示。
+ */
+function pickUncensoredBadgeLabel(v: Record<string, unknown> | undefined): string | null {
+  if (!v) return null;
+  if (v.is_uncensored_leak === true) return "無碼流出";
+  const typ = v.type;
+  if (typeof typ !== "string" || !typ.trim()) return null;
+  const t = typ.trim().toLowerCase();
+  if (t.includes("uncensored-leak")) return "無碼流出";
+  if (t.includes("uncensored") || t.includes("leak")) return "無碼";
+  return null;
+}
+
 /** 列表小標：合併 tags、genres、labels（去重），不足再退回 type */
 function pickListChips(v: Record<string, unknown> | undefined, max: number): string[] {
   if (!v) return [];
@@ -65,7 +80,7 @@ function pickListChips(v: Record<string, unknown> | undefined, max: number): str
 
 export default function VideoCard({
   item,
-  /** 預設 eager：列表縮圖盡早併發請求 /api/thumbnail；僅在極長清單可改 lazy */
+  /** 預設 eager：避免瀏覽器 lazy 延後載入造成捲動時才「補圖」的卡頓感 */
   thumbLoading = "eager",
   showFavoriteHeart = false,
   /** 在「我的最愛」列表應為 true，避免愛心顯示成未加入 */
@@ -83,6 +98,7 @@ export default function VideoCard({
   const title = pickTitle(vals, item.id);
   const durationLabel = formatDurationSec(vals?.duration);
   const hasChineseSubtitle = vals?.has_chinese_subtitle === true;
+  const uncensoredBadge = pickUncensoredBadgeLabel(vals);
   const chips = pickListChips(vals, LIST_CHIPS_MAX);
   const thumbSrc = thumbnailUrlForSlug(item.id, locale);
   const [thumbOk, setThumbOk] = useState(true);
@@ -108,8 +124,13 @@ export default function VideoCard({
           ) : null}
           <div className="card-thumb-shade" aria-hidden />
           <div className="card-thumb-badges" aria-hidden>
-            {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
-            {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
+            {uncensoredBadge ? (
+              <span className="card-meta-badge card-meta-badge-uncensored">{uncensoredBadge}</span>
+            ) : null}
+            <div className="card-thumb-badges-trail">
+              {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
+              {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
+            </div>
           </div>
           <span className="card-play" aria-hidden>
             <svg width="44" height="44" viewBox="0 0 48 48" fill="none">

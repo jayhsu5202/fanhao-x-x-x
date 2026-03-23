@@ -10,7 +10,7 @@ type BrowseMetaRes = {
   category: string;
   label: string;
   description: string;
-  source: "featured" | "search";
+  source: "featured" | "filtered" | "search";
   searchQuery?: string;
 };
 
@@ -38,7 +38,7 @@ export default function CategoryPage() {
       category: d.category,
       label: d.label,
       description: typeof d.description === "string" ? d.description : "",
-      source: d.source === "search" ? "search" : "featured",
+      source: d.source === "search" ? "search" : d.source === "filtered" ? "filtered" : "featured",
       searchQuery: d.searchQuery,
     });
   }, []);
@@ -102,6 +102,9 @@ export default function CategoryPage() {
             <p className="category-tech">
               搜尋關鍵字：<code className="inline-code">{meta.searchQuery}</code>
             </p>
+          ) : null}
+          {!initialLoading && meta?.source === "filtered" ? (
+            <p className="category-tech">資料源：依 Recombee 目錄欄位篩選後的站內趨勢（可持續捲動載入）</p>
           ) : null}
           <p className="category-scroll-hint msg-muted">往下滑自動載入更多</p>
           {catMenu && catMenu.children.length > 0 ? (

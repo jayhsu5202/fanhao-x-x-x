@@ -82,10 +82,6 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
       {open ? (
         <div className="site-nav-panel" id={menuId} role="dialog" aria-label="導覽與分類">
           <div className="site-nav-panel-inner">
-            <div className="site-nav-panel-lang">
-              <span className="site-nav-panel-lang-label">語系（影片頁來源）</span>
-              <LanguageSwitcher />
-            </div>
             <NavLink
               end
               className={({ isActive }) => `site-nav-panel-link${isActive ? " is-active" : ""}`}
