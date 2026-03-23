@@ -4,7 +4,9 @@ import type { RecommItem } from "../components/VideoCard";
 
 export type RecombeeFeedResponse = {
   recomms: RecommItem[];
+  /** 本站 API 統一回傳鍵名；另相容 Recombee 原始鍵 `recommId` */
   recomId?: string | null;
+  recommId?: string | null;
   /** 後端依 Recombee 本批筆數與 recommId 計算；false 時前端不得再請求 */
   hasMore?: boolean;
 };
@@ -37,7 +39,7 @@ function isSentinelInLoadZone(el: HTMLElement): boolean {
 }
 
 function pickRid(d: RecombeeFeedResponse): string | null {
-  const r = d.recomId;
+  const r = d.recomId ?? d.recommId;
   return typeof r === "string" && r.length > 0 ? r : null;
 }
 

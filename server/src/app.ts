@@ -26,10 +26,6 @@ import {
   parseVideoHtml,
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
-import {
-  fetchDirectRecommsForCandidates,
-  itemIdCandidatesFromSearchQuery,
-} from "./lib/recombee-search-direct.js";
 import { searchVariantsForRecall } from "./lib/recombee-search-variants.js";
 import {
   LOCALE_OPTIONS,
@@ -138,13 +134,13 @@ app.get("/api/search", async (request, reply) => {
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
       /** 番號與 itemId 一致時直查置頂；全文勿加 ReQL filter（交集會漏命中）。 */
-      data = await recombeeSearchFirstPageWithDirectHits(query, limit);
+      data = await recombeeSearchFirstPageWithRecall(query, limit);
     } else {
       try {
         data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
       } catch (e) {
         if (e instanceof RecombeeHttpError) {
-          data = await recombeeSearchFirstPageWithDirectHits(query, limit);
+          data = await recombeeSearchFirstPageWithRecall(query, limit);
         } else {
           throw e;
         }
@@ -175,26 +171,25 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
   return out;
 }
 
-/** 首包：直查 slug／番號命中置頂，再補 SearchItems（count 扣掉直查筆數）；零筆時沿用變體召回。 */
-async function recombeeSearchFirstPageWithDirectHits(query: string, limit: number): Promise<Record<string, unknown>> {
-  const directRows = await fetchDirectRecommsForCandidates(itemIdCandidatesFromSearchQuery(query));
-  const need = Math.max(1, limit - directRows.length);
-  let data = (await recombeeSearch(query, need)) as Record<string, unknown>;
-  let searchRecomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
-  if (searchRecomms.length === 0) {
+/**
+ * 搜尋首包：僅 SearchItems + 變體召回。
+ * 不先打 GET /items（public token 不允許，且並行多筆易逾時拖垮整次搜尋，英文關鍵字特別常觸發 slug 候選）。
+ */
+async function recombeeSearchFirstPageWithRecall(query: string, limit: number): Promise<Record<string, unknown>> {
+  let data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+  const n0 = Array.isArray(data.recomms) ? data.recomms.length : 0;
+  if (n0 === 0) {
     for (const v of searchVariantsForRecall(query)) {
       if (v === query) continue;
-      const alt = (await recombeeSearch(v, need)) as Record<string, unknown>;
+      const alt = (await recombeeSearch(v, limit)) as Record<string, unknown>;
       const n1 = Array.isArray(alt.recomms) ? alt.recomms.length : 0;
       if (n1 > 0) {
         data = alt;
-        searchRecomms = alt.recomms as unknown[];
         break;
       }
     }
   }
-  const merged = dedupeFeaturedRecomms([...directRows, ...searchRecomms]).slice(0, limit);
-  return { ...data, recomms: merged };
+  return data;
 }
 
 /** Recombee 回傳鍵為 `recommId`（recom**m**Id）；另相容誤拼 `recomId`。 */
@@ -351,13 +346,13 @@ app.get("/api/browse/:category", async (request, reply) => {
     }
     let data: Record<string, unknown>;
     if (forceFresh || !nextRid) {
-      data = await recombeeSearchFirstPageWithDirectHits(qtext, limit);
+      data = await recombeeSearchFirstPageWithRecall(qtext, limit);
     } else {
       try {
         data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
       } catch (e) {
         if (e instanceof RecombeeHttpError) {
-          data = await recombeeSearchFirstPageWithDirectHits(qtext, limit);
+          data = await recombeeSearchFirstPageWithRecall(qtext, limit);
         } else {
           throw e;
         }

@@ -100,28 +100,6 @@ export type RecombeeSearchBodyOpts = {
   minRelevance?: "low" | "medium" | "high";
 };
 
-/**
- * 依 catalog itemId 取得屬性（REST：`GET /{db}/items/{itemId}`）。
- * 無此項目、404，或 **public token 不允許讀單筆 item**（401/403）時回傳 null，不向上拋錯——避免拖垮搜尋首包。
- */
-export async function recombeeGetItem(itemId: string): Promise<Record<string, unknown> | null> {
-  const id = itemId.trim();
-  if (!id) return null;
-  const path = `/items/${encodeURIComponent(id)}`;
-  const signed = signPath(path, PUBLIC_TOKEN);
-  const url = `https://${BASE_HOST}${signed}`;
-  try {
-    const body = await recombeeRequest(url, { method: "GET" });
-    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-    return body as Record<string, unknown>;
-  } catch (e) {
-    if (e instanceof RecombeeHttpError && (e.status === 404 || e.status === 401 || e.status === 403)) {
-      return null;
-    }
-    throw e;
-  }
-}
-
 export async function recombeeSearch(query: string, count: number, opts?: RecombeeSearchBodyOpts): Promise<unknown> {
   const userId = "anonymous";
   const path = `/search/users/${encodeURIComponent(userId)}/items/`;
