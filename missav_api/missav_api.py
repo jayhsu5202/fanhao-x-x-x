@@ -214,10 +214,48 @@ class Client(Helper):
         """Returns the video object"""
         return Video(url, core=self.core)
 
-    def search(self, query: str, video_count: int = 50, max_workers: int = None) -> Generator[Video, None, None]:
+    def recombee_search_items(
+        self,
+        query: str,
+        count: int = 20,
+        *,
+        filter_expr: Optional[str] = None,
+        booster: Optional[str] = None,
+        timeout: int = 20,
+    ) -> dict:
+        """
+        低階：只呼叫 Recombee SearchItems，回傳原始 JSON（recomms、recommId 等）。
+        與本站 server `recombeeSearch`／`filter` 行為一致，供測試與除錯。
+        """
+        user_id = "anonymous"
+        path = f"/search/users/{quote(user_id, safe='')}/items/"
+        body = {
+            "searchQuery": query,
+            "count": count,
+            "cascadeCreate": True,
+            "returnProperties": True,
+        }
+        if filter_expr:
+            body["filter"] = filter_expr
+        if booster:
+            body["booster"] = booster
+        out = _post(self.core, path, body, timeout=timeout)
+        if isinstance(out, dict) and out.get("error"):
+            raise RuntimeError(f"Recombee SearchItems failed: {out['error']}")
+        return out
+
+    def search(
+        self,
+        query: str,
+        video_count: int = 50,
+        max_workers: int = None,
+        *,
+        filter_expr: Optional[str] = None,
+        booster: Optional[str] = None,
+    ) -> Generator[Video, None, None]:
         """
         Mirrors: POST /search/users/{userId}/items/
-        Body fields follow the snippet’s Recombee client (searchQuery, count, scenario, filter, booster, logic, etc.)
+        可選 `filter_expr`／`booster`（ReQL），與 Recombee 文件及本站後端一致。
         """
         return_properties = True
         user_id = "anonymous"
@@ -229,9 +267,13 @@ class Client(Helper):
             "cascadeCreate": True,
             "returnProperties": return_properties,
         }
+        if filter_expr:
+            body["filter"] = filter_expr
+        if booster:
+            body["booster"] = booster
 
         body = {k: v for k, v in body.items() if v is not None}
-        data = _post(path=path, json_body=body, timeout=9, core=self.core)
+        data = _post(self.core, path, body, timeout=20)
         videos = data.get("recomms", [])
         video_urls = []
         for video in videos:
