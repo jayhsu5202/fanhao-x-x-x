@@ -684,6 +684,8 @@ app.get(
     }
 
     const streamStartedAt = Date.now();
+    /** 反代（nginx）預設會緩衝整段回應，串流會拖慢；關閉 buffering 讓 chunk 即時下發 */
+    reply.header("X-Accel-Buffering", "no");
 
     if (payload.typ === "segment") {
       const hit = segmentCache.get(payload.target);
@@ -727,7 +729,7 @@ app.get(
           toCache as import("node:stream/web").ReadableStream,
           payload.target
         );
-        const fromWebOpts = { highWaterMark: 256 * 1024 } as const;
+        const fromWebOpts = { highWaterMark: 512 * 1024 } as const;
         const webReadable = Readable.fromWeb(
           toClient as Parameters<typeof Readable.fromWeb>[0],
           fromWebOpts

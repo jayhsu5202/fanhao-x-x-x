@@ -214,6 +214,10 @@ export default function VideoPage() {
       tryPlay();
       hls.on(Hls.Events.MANIFEST_PARSED, tryPlay);
       hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          hls.startLoad();
+          return;
+        }
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           hls.startLoad();
