@@ -5,8 +5,8 @@
  * **分層（數字越小越前）**
  * 1. 番號／itemId（slug）：精確、前綴、尾碼數字對齊等
  * 2. 標籤欄：tags、genres、labels
- * 3. 內容／人員／系列：actresses、actors、directors、series、markers
- * 4. 標題：title、title_zh、title_cn…
+ * 3. 內容／人員／系列／類型 slug：actresses、actors、directors、series、markers、`type`
+ * 4. 標題：目錄內所有 `title*` 字串欄（與 docs/recombee-catalog-field-inventory.json 對齊，含各語系）
  *
  * 短純字母查詢（如 cus）易誤命中外文標題：對 2–4 層加不同幅度懲罰，標題最重、標籤最輕。
  */
@@ -26,11 +26,12 @@ function normSlug(s: string): string {
     .toLowerCase();
 }
 
+/** 與 Recombee `values` 一致：掃描所有 `title` 前綴字串欄（含 title_de、title_vi 等），避免硬編碼漏欄 */
 function titleFields(v: Record<string, unknown> | undefined): string[] {
   if (!v) return [];
-  const keys = ["title", "title_zh", "title_cn", "title_en", "title_ko", "title_ja"] as const;
   const out: string[] = [];
-  for (const k of keys) {
+  for (const k of Object.keys(v).sort()) {
+    if (!k.startsWith("title")) continue;
     const t = v[k];
     if (typeof t === "string" && t.trim()) out.push(t);
   }
@@ -143,12 +144,16 @@ function collectTagLikeStrings(v: Record<string, unknown> | undefined): string[]
 
 function collectMetaStrings(v: Record<string, unknown> | undefined): string[] {
   if (!v) return [];
+  const typeStr = v.type;
+  const typeOne =
+    typeof typeStr === "string" && typeStr.trim() ? [typeStr] : ([] as string[]);
   return [
     ...listStringField(v, "actresses"),
     ...listStringField(v, "actors"),
     ...listStringField(v, "directors"),
     ...listStringField(v, "series"),
     ...listStringField(v, "markers"),
+    ...typeOne,
   ];
 }
 

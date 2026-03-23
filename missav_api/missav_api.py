@@ -234,6 +234,7 @@ class Client(Helper):
             "count": count,
             "cascadeCreate": True,
             "returnProperties": True,
+            "minRelevance": "low",
         }
         if filter_expr:
             body["filter"] = filter_expr
@@ -266,6 +267,7 @@ class Client(Helper):
             "count": video_count,
             "cascadeCreate": True,
             "returnProperties": return_properties,
+            "minRelevance": "low",
         }
         if filter_expr:
             body["filter"] = filter_expr

@@ -26,7 +26,6 @@ import {
   parseVideoHtml,
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
-import { rankSearchRecommsForQuery } from "./lib/recombee-search-rank.js";
 import { orderSearchRecommsForMode, parseSearchSortMode } from "./lib/recombee-search-sort.js";
 import {
   hyphenStudioSearchQuery,
@@ -317,7 +316,13 @@ app.get("/api/browse/:category", async (request, reply) => {
   if (!meta) {
     return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
   }
-  const q = request.query as { limit?: string; recommId?: string; cursor?: string; fresh?: string };
+  const q = request.query as {
+    limit?: string;
+    recommId?: string;
+    cursor?: string;
+    fresh?: string;
+    sort?: string;
+  };
   const def = config.recombeeFeedDefaultBatch;
   const max = config.recombeeFeedRequestMax;
   let limit = q.limit != null ? Number(q.limit) : def;
@@ -327,6 +332,7 @@ app.get("/api/browse/:category", async (request, reply) => {
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
   const forceFresh = q.fresh === "1" || q.fresh === "true";
+  const sortMode = parseSearchSortMode(q.sort);
   try {
     if (meta.mode === "featured" || meta.mode === "filtered") {
       const cf = meta.mode === "filtered" ? meta.catalogFilter?.trim() : "";
@@ -394,9 +400,11 @@ app.get("/api/browse/:category", async (request, reply) => {
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const dedupedSearch = dedupeFeaturedRecomms(rawRecomms);
-    const recomms = rankSearchRecommsForQuery(qtext, dedupedSearch);
+    const ordered = orderSearchRecommsForMode(qtext, dedupedSearch, sortMode);
+    const recomms = ordered.slice(0, limit);
     const recomId = pickRecomId(data);
-    const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
+    const hasMore =
+      ordered.length > limit || recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
     return {
       category: meta.key,
@@ -407,6 +415,7 @@ app.get("/api/browse/:category", async (request, reply) => {
       recomms,
       recomId,
       hasMore,
+      sort: sortMode,
       numberNext: data.numberNext ?? null,
     };
   } catch (e) {

@@ -43,7 +43,7 @@
 | `GET /api/search`、`/api/featured`、`/api/browse/*` | 回傳 `recomms` **原樣保留** `id` + `values`（僅依 `id` 去重） |
 | `GET /api/browse/jav` | 全站匿名趨勢（無 ReQL filter） |
 | `GET /api/browse/amateur`、`uncensored`、`madou` | `RecommendItemsToUser` + **ReQL `filter`**（`recombee-catalog-filters.ts`）：依 `genres`／`tags`、`is_uncensored_leak`／`type`、標題含「麻豆」等**先篩目錄子集**，再在子集內趨勢推薦（無限捲動仍走 `recommId`） |
-| `GET /api/search` | **純 SearchItems 全文**（Recombee 索引字串與集合欄位，含標題／標籤等；**不加** ReQL `filter`，避免與全文變成交集而漏番號／標題命中）。首包若 0 筆，會自動試 **查詢變體**（空白、`-`、大小寫、NFKC 等，見 `recombee-search-variants.ts`） |
+| `GET /api/search` | **純 SearchItems 全文**（Recombee 索引字串與集合欄位，含標題／標籤等；**不加** ReQL `filter`，避免與全文變成交集而漏番號／標題命中）。請求體固定 `minRelevance: "low"` 以盡量湊滿 `count`。首包若 0 筆，會自動試 **查詢變體**（空白、`-`、大小寫、NFKC 等，見 `recombee-search-variants.ts`）。伺服器端 **`recombee-search-rank.ts`** 重排時會讀取 `values` 內**所有 `title*` 字串**（與本表／inventory 一致）以及 `type` slug，與 tags／人員等分層，避免硬編碼漏欄 |
 | `GET /api/videos/:slug` | **HTML 解析**詳情：`genres`（第 4 格 `text-secondary` 的 `<a>`）、系列、發行商等；**不是** Recombee `values` |
 | `VideoCard` | 標題：`pickTitle(values)`；縮圖角標：`has_chinese_subtitle`（中字）、`duration`；列表小標：**合併** `tags` + `genres` + `labels`（去重，最多 3），全空才用 `type` |
 

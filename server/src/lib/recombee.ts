@@ -110,6 +110,8 @@ export async function recombeeSearch(query: string, count: number, opts?: Recomb
     count,
     cascadeCreate: true,
     returnProperties: true,
+    /** 明確要求盡量湊滿 count（Recombee 文件預設亦為 low；避免情境誤設為較嚴格閾值時結果過少） */
+    minRelevance: "low",
   };
   const f = opts?.filter?.trim();
   if (f) body.filter = f;
