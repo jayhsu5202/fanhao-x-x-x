@@ -338,6 +338,7 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
   try {
     const thumbUrl = await resolveThumbnailUrlFromPage(cacheKey, () => fetchVideoPage(pageUrl, acceptLang));
     if (!thumbUrl) {
+      request.log.warn({ slug, pageUrl }, "thumbnail: parse miss (no og:image in HTML)");
       return sendError(reply, 404, "NO_THUMB", "找不到封面網址");
     }
     const res = await upstreamFetch(thumbUrl, {
@@ -345,6 +346,7 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
       signal: AbortSignal.timeout(45_000),
     });
     if (!res.ok) {
+      request.log.warn({ slug, status: res.status, thumb: thumbUrl.slice(0, 120) }, "thumbnail: CDN HTTP error");
       return sendError(reply, 502, "THUMB_HTTP", `封面上游 HTTP ${res.status}`);
     }
     const ct = res.headers.get("content-type") || "image/jpeg";
@@ -354,6 +356,7 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
     return reply.send(buf);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    request.log.warn({ slug, pageUrl, err: msg }, "thumbnail: fetch/parse failed (see detail)");
     return sendError(reply, 502, "THUMB_FETCH", "無法取得封面", { detail: msg });
   }
 });
