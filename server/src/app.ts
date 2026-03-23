@@ -50,6 +50,13 @@ function noStoreLocale(reply: FastifyReply): void {
   reply.header("Vary", "X-Missav-Locale");
 }
 
+/** 終端機 log 用：避免把整段 Python stderr／traceback 打進一行 JSON */
+function summarizeUpstreamErr(text: string, maxLen = 240): string {
+  const first = text.split(/\r?\n/).find((l) => l.trim().length > 0) ?? text;
+  const t = first.trim();
+  return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
+}
+
 const app = Fastify({
   logger: true,
   bodyLimit: 1024 * 64,
@@ -356,7 +363,10 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
     return reply.send(buf);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    request.log.warn({ slug, pageUrl, err: msg }, "thumbnail: fetch/parse failed (see detail)");
+    request.log.warn(
+      { slug, pageUrl, err: summarizeUpstreamErr(msg) },
+      "thumbnail: upstream fetch failed (full detail in JSON body)"
+    );
     return sendError(reply, 502, "THUMB_FETCH", "無法取得封面", { detail: msg });
   }
 });
