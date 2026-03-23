@@ -1,5 +1,6 @@
 import {
   RECOMBEE_FILTER_AMATEUR,
+  RECOMBEE_FILTER_CHINESE_SUBTITLE,
   RECOMBEE_FILTER_MADOU,
   RECOMBEE_FILTER_UNCENSORED,
 } from "./recombee-catalog-filters.js";
@@ -8,6 +9,7 @@ import {
 
 export const BROWSE_CATEGORY_KEYS = ["jav", "amateur", "uncensored", "madou"] as const;
 export type BrowseCategoryKey = (typeof BROWSE_CATEGORY_KEYS)[number];
+export type BrowseMode = "featured" | "filtered" | "search";
 
 export type BrowseCategoryMeta = {
   key: BrowseCategoryKey;
@@ -20,10 +22,20 @@ export type BrowseCategoryMeta = {
    * filtered = RecommendItemsToUser + ReQL catalogFilter（目錄欄位子集內趨勢，無限捲動可續）；
    * search = 純 SearchItems（保留給需關鍵字驅動的場景）。
    */
-  mode: "featured" | "filtered" | "search";
+  mode: BrowseMode;
   /** mode===search 時必填 */
   searchQuery?: string;
   /** mode===filtered 時必填，ReQL */
+  catalogFilter?: string;
+};
+
+export type BrowseSubcategoryMeta = {
+  categoryKey: BrowseCategoryKey;
+  key: string;
+  label: string;
+  description: string;
+  mode: BrowseMode;
+  searchQuery?: string;
   catalogFilter?: string;
 };
 
@@ -60,6 +72,113 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
   },
 };
 
+const andFilter = (...parts: Array<string | undefined>): string => parts.filter(Boolean).map((x) => `(${x})`).join(" and ");
+
+const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
+  {
+    categoryKey: "jav",
+    key: "subtitles",
+    label: "中文字幕",
+    description: "帶中文字幕的熱門片單。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_CHINESE_SUBTITLE,
+    searchQuery: "中文字幕",
+  },
+  {
+    categoryKey: "jav",
+    key: "new-release",
+    label: "新作上市",
+    description: "以新作相關內容聚合。",
+    mode: "search",
+    searchQuery: "新作",
+  },
+  {
+    categoryKey: "jav",
+    key: "recent",
+    label: "最近更新",
+    description: "近期更新與熱門題材。",
+    mode: "search",
+    searchQuery: "最新",
+  },
+  {
+    categoryKey: "amateur",
+    key: "featured",
+    label: "素人精選",
+    description: "素人題材的熱門推薦。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_AMATEUR,
+    searchQuery: "素人",
+  },
+  {
+    categoryKey: "amateur",
+    key: "fc2",
+    label: "FC2",
+    description: "聚焦 FC2 系列與相關作品。",
+    mode: "search",
+    searchQuery: "FC2",
+  },
+  {
+    categoryKey: "amateur",
+    key: "subtitles",
+    label: "中文字幕",
+    description: "帶中文字幕的素人內容。",
+    mode: "filtered",
+    catalogFilter: andFilter(RECOMBEE_FILTER_AMATEUR, RECOMBEE_FILTER_CHINESE_SUBTITLE),
+    searchQuery: "素人 中文字幕",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "featured",
+    label: "無碼精選",
+    description: "無碼流出與相關熱門片單。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_UNCENSORED,
+    searchQuery: "無碼流出",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "subtitles",
+    label: "中文字幕",
+    description: "帶中文字幕的無碼相關內容。",
+    mode: "filtered",
+    catalogFilter: andFilter(RECOMBEE_FILTER_UNCENSORED, RECOMBEE_FILTER_CHINESE_SUBTITLE),
+    searchQuery: "無碼 中文字幕",
+  },
+  {
+    categoryKey: "uncensored",
+    key: "keyword",
+    label: "無碼關鍵字",
+    description: "無碼主題的延伸結果。",
+    mode: "search",
+    searchQuery: "無碼",
+  },
+  {
+    categoryKey: "madou",
+    key: "featured",
+    label: "亞洲精選",
+    description: "亞洲與麻豆主題的熱門內容。",
+    mode: "filtered",
+    catalogFilter: RECOMBEE_FILTER_MADOU,
+    searchQuery: "麻豆傳媒",
+  },
+  {
+    categoryKey: "madou",
+    key: "md",
+    label: "MD",
+    description: "聚焦 MD 系列相關內容。",
+    mode: "search",
+    searchQuery: "MD",
+  },
+  {
+    categoryKey: "madou",
+    key: "domestic",
+    label: "國產精選",
+    description: "國產與亞洲代理主題。",
+    mode: "search",
+    searchQuery: "國產",
+  },
+] as const;
+
 export function isBrowseCategoryKey(s: string): s is BrowseCategoryKey {
   return (BROWSE_CATEGORY_KEYS as readonly string[]).includes(s);
 }
@@ -71,4 +190,17 @@ export function getBrowseCategoryMeta(key: string): BrowseCategoryMeta | null {
 
 export function listBrowseCategories(): BrowseCategoryMeta[] {
   return BROWSE_CATEGORY_KEYS.map((k) => DEF[k]);
+}
+
+export function listBrowseSubcategories(categoryKey: string): BrowseSubcategoryMeta[] {
+  const k = categoryKey.trim().toLowerCase();
+  if (!isBrowseCategoryKey(k)) return [];
+  return SUBCATEGORY_DEF.filter((item) => item.categoryKey === k);
+}
+
+export function getBrowseSubcategoryMeta(categoryKey: string, subcategoryKey: string): BrowseSubcategoryMeta | null {
+  const ck = categoryKey.trim().toLowerCase();
+  if (!isBrowseCategoryKey(ck)) return null;
+  const sk = subcategoryKey.trim().toLowerCase();
+  return SUBCATEGORY_DEF.find((item) => item.categoryKey === ck && item.key === sk) ?? null;
 }

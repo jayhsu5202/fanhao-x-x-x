@@ -13,3 +13,5 @@ export const RECOMBEE_FILTER_AMATEUR = `("素人" in 'genres') or ("素人" in '
 export const RECOMBEE_FILTER_MADOU =
   `("麻豆" in 'title_zh') or ("麻豆傳媒" in 'title_zh') or ("麻豆" in 'title') or ("麻豆" in 'title_cn')`;
 
+/** 中文字幕 */
+export const RECOMBEE_FILTER_CHINESE_SUBTITLE = `'has_chinese_subtitle' == true`;
