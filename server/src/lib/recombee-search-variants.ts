@@ -32,3 +32,26 @@ export function searchVariantsForRecall(raw: string): string[] {
 
   return out;
 }
+
+/**
+ * 如 CUS、SSIS、FC2（2–8 字、英數），另以「前綴-」補搜一次，提高 `cus-001` 類 slug 召回。
+ * 不影響中文關鍵字或含空白之查詢。
+ */
+export function shouldMergeHyphenStudioSearch(raw: string): boolean {
+  const t = raw.trim();
+  if (t.length < 2 || t.length > 8) return false;
+  if (!/^[a-zA-Z][a-zA-Z0-9]*$/i.test(t)) return false;
+  if (/^\d+$/.test(t)) return false;
+  return true;
+}
+
+export function hyphenStudioSearchQuery(raw: string): string {
+  let base = raw.trim();
+  try {
+    base = base.normalize("NFKC");
+  } catch {
+    /* ignore */
+  }
+  base = base.toLowerCase().replace(/[\s_]+/g, "").replace(/-+$/, "");
+  return `${base}-`;
+}

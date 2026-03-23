@@ -28,7 +28,11 @@ import {
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
 import { rankSearchRecommsForQuery } from "./lib/recombee-search-rank.js";
 import { orderSearchRecommsForMode, parseSearchSortMode } from "./lib/recombee-search-sort.js";
-import { searchVariantsForRecall } from "./lib/recombee-search-variants.js";
+import {
+  hyphenStudioSearchQuery,
+  searchVariantsForRecall,
+  shouldMergeHyphenStudioSearch,
+} from "./lib/recombee-search-variants.js";
 import {
   LOCALE_OPTIONS,
   acceptLanguageForLocaleKey,
@@ -157,9 +161,11 @@ app.get("/api/search", async (request, reply) => {
     }
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const deduped = dedupeFeaturedRecomms(rawRecomms);
-    const recomms = orderSearchRecommsForMode(query, deduped, sortMode);
+    const ordered = orderSearchRecommsForMode(query, deduped, sortMode);
+    const recomms = ordered.slice(0, limit);
     const recomId = pickRecomId(data);
-    const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
+    const hasMore =
+      ordered.length > limit || recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
     return { recomms, recomId, hasMore, sort: sortMode, numberNext: data.numberNext ?? null };
   } catch (e) {
@@ -187,6 +193,24 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
  */
 async function recombeeSearchFirstPageWithRecall(query: string, limit: number): Promise<Record<string, unknown>> {
   let data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+  let recomms: unknown[] = Array.isArray(data.recomms) ? data.recomms : [];
+
+  if (shouldMergeHyphenStudioSearch(query)) {
+    const altQ = hyphenStudioSearchQuery(query);
+    if (altQ.replace(/-$/, "").length >= 2) {
+      try {
+        const altData = (await recombeeSearch(altQ, limit)) as Record<string, unknown>;
+        const sec = Array.isArray(altData.recomms) ? altData.recomms : [];
+        if (sec.length > 0) {
+          recomms = dedupeFeaturedRecomms([...sec, ...recomms]);
+          data = { ...data, recomms };
+        }
+      } catch {
+        /* 補搜失敗不影響主結果 */
+      }
+    }
+  }
+
   const n0 = Array.isArray(data.recomms) ? data.recomms.length : 0;
   if (n0 === 0) {
     for (const v of searchVariantsForRecall(query)) {
