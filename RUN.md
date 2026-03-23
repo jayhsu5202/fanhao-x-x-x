@@ -20,9 +20,10 @@
 | `CORS_ORIGIN` | 選填；未設定時允許任意來源（方便本機）。正式環境請設為你的前端網域 |
 | `PUBLIC_BASE_URL` | 選填；**留空**時 `m3u8_play_url` 與 playlist 內嵌皆為**相對路徑** `/api/stream?...`（適用 Vite `proxy` 或 Nginx 同源）。僅在前後端不同網域且無反代時才設為公開 API 根網址 |
 | `MISSAV_HTML_PYTHON_ONLY` | 選填；設為 `1` 時，MissAV **影片頁 HTML** 強制只走 Python（`scripts/fetch_missav_html.py`）。預設為先 Node（undici）抓取，失敗或內容異常再回退 Python |
-| `DOWNLOAD_QUEUE_CONCURRENCY` | 選填；下載佇列**同時執行**的工作數（每個工作一個 Python 子程序），預設 `4`，上限 `8` |
-| `THUMB_HTML_FETCH_CONCURRENCY` | 選填；**卡片縮圖／preview** 解析 MissAV 影片頁時，同時進行的上游 HTML 抓取數，預設 `16`，上限 `32` |
-| `UPSTREAM_CONNECTIONS_PER_ORIGIN` | 選填；undici 對**同一 origin** 的併發連線數（HLS 分片、縮圖、MissAV HTML 等），預設 `128`，上限 `256` |
+| `DOWNLOAD_QUEUE_CONCURRENCY` | 選填；下載佇列**同時執行**的工作數（每個工作一個 Python 子程序），預設 `6`，上限 `16` |
+| `THUMB_HTML_FETCH_CONCURRENCY` | 選填；**卡片縮圖／preview** 解析 MissAV 影片頁時，同時進行的上游 HTML 抓取數，預設 `24`，上限 `48` |
+| `VIDEO_PAGE_FETCH_CONCURRENCY` | 選填；詳情／預覽等 `fetchVideoPage` 併發，預設 `20`，上限 `48` |
+| `UPSTREAM_CONNECTIONS_PER_ORIGIN` | 選填；undici 對**同一 origin** 的併發連線數（HLS 分片、縮圖、MissAV HTML 等），預設 `192`，上限 `384` |
 | `THUMB_PARSE_CACHE_TTL_MS` | 選填；上述解析出的封面 CDN URL 記憶體快取 TTL（毫秒），預設 15 分鐘，最少 60 秒 |
 | `THUMB_PARSE_CACHE_MAX_ENTRIES` | 選填；快取最多筆數，預設 `2048`，逾量刪最舊 |
 
