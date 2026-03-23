@@ -1,74 +1,60 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { apiGet } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
-import VideoCard, { type RecommItem } from "../components/VideoCard";
+import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
+import { useInfiniteRecombeeFeed } from "../hooks/useInfiniteRecombeeFeed";
 
-type SearchRes = { recomms: RecommItem[] };
-
-const SEARCH_LIMIT = 40;
+const SEARCH_PAGE_LIMIT = 40;
 
 export default function SearchResultsPage() {
   const { locale } = useMissavLocale();
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") ?? "";
+  const trimmed = qParam.trim();
+  const hasQuery = trimmed.length > 0;
 
   const [q, setQ] = useState(qParam);
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<RecommItem[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [formErr, setFormErr] = useState<string | null>(null);
 
-  const runSearch = useCallback(async (query: string) => {
-    const t = query.trim();
-    if (!t) {
-      setErr(null);
-      setItems(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setErr(null);
-    setItems(null);
-    try {
-      const data = await apiGet<SearchRes>(
-        `/api/search?query=${encodeURIComponent(t)}&limit=${SEARCH_LIMIT}`
-      );
-      setItems(data.recomms ?? []);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "搜尋失敗");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const getInitialUrl = useCallback(
+    () => `/api/search?query=${encodeURIComponent(trimmed)}&limit=${SEARCH_PAGE_LIMIT}`,
+    [trimmed]
+  );
+  const getMoreUrl = useCallback(
+    ({ useNext, recommId }: { useNext: boolean; recommId: string | null }) => {
+      const base = `/api/search?query=${encodeURIComponent(trimmed)}&limit=${SEARCH_PAGE_LIMIT}`;
+      if (useNext && recommId) {
+        return `${base}&recommId=${encodeURIComponent(recommId)}`;
+      }
+      return `${base}&fresh=1&_cb=${Date.now()}`;
+    },
+    [trimmed]
+  );
+
+  const { items, initialLoading, loadingMore, err, sentinelRef } = useInfiniteRecombeeFeed({
+    resetKey: `${locale}|${trimmed}`,
+    enabled: hasQuery,
+    getInitialUrl,
+    getMoreUrl,
+    initialErrorLabel: "搜尋失敗",
+    loadMoreErrorLabel: "載入更多失敗",
+  });
 
   useEffect(() => {
     setQ(qParam);
   }, [qParam]);
 
-  useEffect(() => {
-    const t = qParam.trim();
-    if (!t) {
-      setItems(null);
-      setErr(null);
-      setLoading(false);
-      return;
-    }
-    void runSearch(t);
-  }, [qParam, locale, runSearch]);
-
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     const t = q.trim();
     if (!t) {
-      setErr("請輸入關鍵字");
+      setFormErr("請輸入關鍵字");
       return;
     }
-    setErr(null);
+    setFormErr(null);
     setSearchParams({ q: t });
   }
-
-  const hasQuery = qParam.trim().length > 0;
 
   return (
     <div className="page-shell search-results-page">
@@ -82,12 +68,13 @@ export default function SearchResultsPage() {
         <h1 className="search-results-h1">搜尋影片</h1>
         {hasQuery ? (
           <p className="search-results-meta">
-            關鍵字：<span className="search-results-keyword">{qParam}</span>
-            <span className="search-results-meta-hint"> · 最多顯示 {SEARCH_LIMIT} 筆</span>
+            關鍵字：<span className="search-results-keyword">{qParam.trim()}</span>
+            <span className="search-results-meta-hint"> · 往下滑自動載入更多</span>
           </p>
         ) : (
           <p className="search-results-meta search-results-meta--muted">輸入關鍵字後搜尋，或從首頁與選單進入。</p>
         )}
+        {formErr ? <p className="msg-error search-results-form-err">{formErr}</p> : null}
         <form className="search-bar search-bar-hero search-results-form" onSubmit={onSubmit}>
           <input
             value={q}
@@ -113,7 +100,7 @@ export default function SearchResultsPage() {
 
         {hasQuery && err ? <div className="msg-error">{err}</div> : null}
 
-        {hasQuery && loading ? (
+        {hasQuery && initialLoading ? (
           <div className="grid-cards search-results-grid">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="card">
@@ -127,21 +114,36 @@ export default function SearchResultsPage() {
           </div>
         ) : null}
 
-        {hasQuery && !loading && items && items.length === 0 ? (
+        {hasQuery && !initialLoading && items.length === 0 && !err ? (
           <p className="msg-muted search-results-empty-msg">沒有符合的結果，請換個關鍵字或從首頁推薦挑選。</p>
         ) : null}
 
-        {hasQuery && !loading && items && items.length > 0 ? (
+        {hasQuery && !initialLoading && items.length > 0 ? (
           <>
             <div className="search-results-count" aria-live="polite">
-              共 {items.length} 筆結果
+              已顯示 {items.length} 筆{loadingMore ? "（載入中…）" : ""}
             </div>
-            <div className="grid-cards search-results-grid">
+            <div className="grid-cards search-results-grid" aria-busy={loadingMore}>
               {items.map((it) => (
-                <VideoCard key={`${it.id}-${locale}`} item={it} />
+                <VideoCard key={`${it.id}-${locale}`} item={it} showFavoriteHeart />
               ))}
+              <div ref={sentinelRef} className="infinite-sentinel" aria-hidden />
             </div>
           </>
+        ) : null}
+
+        {hasQuery && loadingMore && !initialLoading ? (
+          <div className="grid-cards search-results-grid search-results-grid--more-skel" aria-hidden>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={`more-${i}`} className="card">
+                <div className="card-thumb skeleton" style={{ minHeight: 120 }} />
+                <div className="card-body">
+                  <div className="skeleton" style={{ height: 10, width: "40%" }} />
+                  <div className="skeleton" style={{ height: 14, marginTop: 8, width: "100%" }} />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : null}
 
         <p className="footer-note">

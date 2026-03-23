@@ -756,6 +756,18 @@ code.inline-code {
   gap: 0.85rem;
 }
 
+.grid-cards .infinite-sentinel {
+  grid-column: 1 / -1;
+  min-height: 28px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.category-scroll-hint {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.9rem;
+}
+
 @media (min-width: 480px) {
   .grid-cards {
     gap: 1.15rem;
@@ -780,6 +792,94 @@ code.inline-code {
 
 .card-link {
   display: block;
+}
+
+.card-slot-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.favorite-heart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+.favorite-heart:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.favorite-heart:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.favorite-heart--on {
+  color: #ff6b9d;
+}
+
+.card-favorite-heart {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 4;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.detail-title-row .detail-h1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-favorite-heart {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.detail-favorite-placeholder {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+}
+
+.favorites-row-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.favorites-remove-btn {
+  align-self: flex-start;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.favorites-remove-btn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .card-thumb {
@@ -1096,6 +1196,11 @@ code.inline-code {
 .search-results-form {
   max-width: min(640px, 100%);
   margin: 0;
+}
+
+.search-results-form-err {
+  margin: 0 0 0.65rem;
+  max-width: min(640px, 100%);
 }
 
 .search-results-main {

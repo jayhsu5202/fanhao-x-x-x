@@ -1,55 +1,71 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { apiGet } from "../api/client";
-import VideoCard, { type RecommItem } from "../components/VideoCard";
 import SiteHeader from "../components/SiteHeader";
+import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
+import { useInfiniteRecombeeFeed, type RecombeeFeedResponse } from "../hooks/useInfiniteRecombeeFeed";
 import { isNavCategoryKey, NAV_MENU } from "../constants/navCategories";
 
-type BrowseRes = {
+type BrowseMetaRes = {
   category: string;
   label: string;
   description: string;
   source: "featured" | "search";
   searchQuery?: string;
-  recomms: RecommItem[];
 };
+
+type BrowseFirstPayload = BrowseMetaRes & RecombeeFeedResponse;
+
+const CATEGORY_LIMIT = 28;
 
 export default function CategoryPage() {
   const { locale } = useMissavLocale();
   const { category = "" } = useParams<{ category: string }>();
-  const [data, setData] = useState<BrowseRes | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
   const valid = isNavCategoryKey(category);
   const catMenu = valid ? NAV_MENU.find((m) => m.key === category) : undefined;
 
+  const [meta, setMeta] = useState<BrowseMetaRes | null>(null);
+
   useEffect(() => {
-    if (!valid) {
-      setLoading(false);
-      setData(null);
-      setErr(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setErr(null);
-    setData(null);
-    apiGet<BrowseRes>(`/api/browse/${encodeURIComponent(category)}?limit=28`)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((e) => {
-        if (!cancelled) setErr(e instanceof Error ? e.message : "載入失敗");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [category, valid, locale]);
+    setMeta(null);
+  }, [category]);
+
+  const onInitialResponse = useCallback((data: unknown) => {
+    const d = data as BrowseFirstPayload;
+    if (typeof d.label !== "string") return;
+    setMeta({
+      category: d.category,
+      label: d.label,
+      description: typeof d.description === "string" ? d.description : "",
+      source: d.source === "search" ? "search" : "featured",
+      searchQuery: d.searchQuery,
+    });
+  }, []);
+
+  const getInitialUrl = useCallback(
+    () => `/api/browse/${encodeURIComponent(category)}?limit=${CATEGORY_LIMIT}`,
+    [category]
+  );
+  const getMoreUrl = useCallback(
+    ({ useNext, recommId }: { useNext: boolean; recommId: string | null }) => {
+      const base = `/api/browse/${encodeURIComponent(category)}?limit=${CATEGORY_LIMIT}`;
+      if (useNext && recommId) {
+        return `${base}&recommId=${encodeURIComponent(recommId)}`;
+      }
+      return `${base}&fresh=1&_cb=${Date.now()}`;
+    },
+    [category]
+  );
+
+  const { items, initialLoading, loadingMore, err, sentinelRef } = useInfiniteRecombeeFeed({
+    resetKey: `${category}|${locale}`,
+    enabled: valid,
+    getInitialUrl,
+    getMoreUrl,
+    initialErrorLabel: "載入失敗",
+    loadMoreErrorLabel: "載入更多失敗",
+    onInitialResponse,
+  });
 
   if (!valid) {
     return (
@@ -74,17 +90,18 @@ export default function CategoryPage() {
         <nav className="category-breadcrumb" aria-label="麵包屑">
           <Link to="/">首頁</Link>
           <span aria-hidden> / </span>
-          <span>{loading ? "…" : data?.label ?? category}</span>
+          <span>{initialLoading && !meta ? "…" : meta?.label ?? category}</span>
         </nav>
 
         <header className="category-hero">
-          <h1 className="category-title">{loading ? "載入中…" : data?.label ?? ""}</h1>
-          {!loading && data ? <p className="category-desc">{data.description}</p> : null}
-          {!loading && data?.source === "search" && data.searchQuery ? (
+          <h1 className="category-title">{initialLoading && !meta ? "載入中…" : meta?.label ?? ""}</h1>
+          {!initialLoading && meta ? <p className="category-desc">{meta.description}</p> : null}
+          {!initialLoading && meta?.source === "search" && meta.searchQuery ? (
             <p className="category-tech">
-              搜尋關鍵字：<code className="inline-code">{data.searchQuery}</code>
+              搜尋關鍵字：<code className="inline-code">{meta.searchQuery}</code>
             </p>
           ) : null}
+          <p className="category-scroll-hint msg-muted">往下滑自動載入更多</p>
           {catMenu && catMenu.children.length > 0 ? (
             <nav className="category-submenu" aria-label="此分類子選單">
               {catMenu.children.map((ch) => (
@@ -98,7 +115,7 @@ export default function CategoryPage() {
 
         {err ? <div className="msg-error">{err}</div> : null}
 
-        {loading ? (
+        {initialLoading ? (
           <div className="grid-cards">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="card">
@@ -112,16 +129,30 @@ export default function CategoryPage() {
           </div>
         ) : null}
 
-        {!loading && data && data.recomms.length === 0 ? (
+        {!initialLoading && items.length === 0 && !err ? (
           <p className="msg-muted" style={{ textAlign: "left", padding: "1rem 0" }}>
             此分類暫無結果，請改從首頁搜尋或其它分類進入。
           </p>
         ) : null}
 
-        {!loading && data && data.recomms.length > 0 ? (
-          <div className="grid-cards">
-            {data.recomms.map((it) => (
-              <VideoCard key={`${it.id}-${locale}`} item={it} />
+        {!initialLoading && items.length > 0 ? (
+          <div className="grid-cards" aria-busy={loadingMore}>
+            {items.map((it) => (
+              <VideoCard key={`${it.id}-${locale}`} item={it} showFavoriteHeart />
+            ))}
+            <div ref={sentinelRef} className="infinite-sentinel" aria-hidden />
+          </div>
+        ) : null}
+
+        {loadingMore && !initialLoading ? (
+          <div className="grid-cards category-more-skel" aria-hidden style={{ marginTop: 12 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={`cm-${i}`} className="card">
+                <div className="card-thumb skeleton" style={{ minHeight: 120 }} />
+                <div className="card-body">
+                  <div className="skeleton" style={{ height: 10, width: "40%" }} />
+                </div>
+              </div>
             ))}
           </div>
         ) : null}

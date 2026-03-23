@@ -13,15 +13,17 @@ import {
   findCompletedJobForSlug,
   getDownloadQueueStats,
   getJob,
+  markAbortedJobsAfterRestart,
   pruneOldJobs,
 } from "./lib/download-jobs.js";
+import { prisma } from "./lib/prisma.js";
 import { sendError } from "./lib/errors.js";
 import { rewritePlaylist } from "./lib/hls-proxy.js";
 import {
+  buildCdnMediaHeaders,
   fetchVideoPage,
   getVideoPageFetchQueueStats,
   parseVideoHtml,
-  CDN_HEADERS,
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
 import {
@@ -57,6 +59,11 @@ function summarizeUpstreamErr(text: string, maxLen = 240): string {
   return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
 }
 
+function isValidContentSlug(s: string | undefined): s is string {
+  const t = s?.trim() ?? "";
+  return t.length > 0 && t.length < 512 && !t.includes("..") && !t.includes("/");
+}
+
 const app = Fastify({
   logger: true,
   bodyLimit: 1024 * 64,
@@ -89,11 +96,13 @@ async function checkPythonMissav(): Promise<boolean> {
 
 app.get("/api/health", async () => {
   const pythonAvailable = await checkPythonMissav();
+  const queue = await getDownloadQueueStats();
   return {
     ok: true,
     pythonAvailable,
     downloadQueueConcurrency: config.downloadQueueConcurrency,
     upstreamConnectionsPerOrigin: config.upstreamConnectionsPerOrigin,
+    queue,
     ...getThumbHtmlQueueStats(),
     ...getVideoPageFetchQueueStats(),
   };
@@ -106,7 +115,7 @@ app.get("/api/locales", async () => ({
 }));
 
 app.get("/api/search", async (request, reply) => {
-  const q = request.query as { query?: string; limit?: string };
+  const q = request.query as { query?: string; limit?: string; recommId?: string; cursor?: string; fresh?: string };
   const query = (q.query ?? "").trim();
   if (!query) {
     return sendError(reply, 400, "BAD_REQUEST", "缺少搜尋關鍵字 query");
@@ -114,10 +123,30 @@ app.get("/api/search", async (request, reply) => {
   let limit = q.limit != null ? Number(q.limit) : 20;
   if (!Number.isFinite(limit)) limit = 20;
   limit = Math.min(50, Math.max(1, Math.floor(limit)));
+  const nextRid =
+    (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
+    (typeof q.cursor === "string" ? q.cursor.trim() : "");
+  const forceFresh = q.fresh === "1" || q.fresh === "true";
   try {
-    const data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
-    const recomms = Array.isArray(data.recomms) ? data.recomms : [];
-    return { recomms, numberNext: data.numberNext ?? null };
+    let data: Record<string, unknown>;
+    if (forceFresh || !nextRid) {
+      data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+    } else {
+      try {
+        data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
+      } catch (e) {
+        if (e instanceof RecombeeHttpError) {
+          data = (await recombeeSearch(query, limit)) as Record<string, unknown>;
+        } else {
+          throw e;
+        }
+      }
+    }
+    const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
+    const recomms = dedupeFeaturedRecomms(rawRecomms);
+    const recomId = pickRecomId(data);
+    noStoreLocale(reply);
+    return { recomms, recomId, numberNext: data.numberNext ?? null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return sendError(reply, 502, "RECOMBEE_ERROR", "搜尋服務失敗", { detail: msg });
@@ -135,6 +164,11 @@ function dedupeFeaturedRecomms(raw: unknown[]): unknown[] {
     out.push(x);
   }
   return out;
+}
+
+function pickRecomId(data: Record<string, unknown>): string | null {
+  const raw = data.recomId ?? data.recomm_id;
+  return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
 
 /** 首頁新串／fresh 時略旋轉，減少與已載入清單重疊（Recombee 文件 rotationRate / rotationTime） */
@@ -180,11 +214,15 @@ app.get("/api/featured", async (request, reply) => {
 
     const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
     const recomms = dedupeFeaturedRecomms(rawRecomms);
-    const rawId = data.recomId ?? data.recomm_id;
-    const recomId =
-      typeof rawId === "string" && rawId.length > 0 ? rawId : null;
+    const recomId = pickRecomId(data);
     const likelyEnd = recomms.length < limit;
-    const hasMore = recomms.length > 0 || recomId != null;
+    /**
+     * 匿名推薦商品庫極大；前端以去重累積列表。若 hasMore 隨空批／無 recommId 變 false，
+     * 無限捲動會誤判到底。成功回應一律允許繼續請求（recommend-next 或 fresh 輪替）。
+     */
+    const hasMore = true;
+    /** 避免瀏覽器快取同一 URL（尤其 ?fresh=1）導致前端去重後永遠 0 筆新項目、捲動停住 */
+    noStoreLocale(reply);
     return {
       recomms,
       recomId,
@@ -208,29 +246,74 @@ app.get("/api/browse/:category", async (request, reply) => {
   if (!meta) {
     return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
   }
-  const q = request.query as { limit?: string };
+  const q = request.query as { limit?: string; recommId?: string; cursor?: string; fresh?: string };
   let limit = q.limit != null ? Number(q.limit) : 28;
   if (!Number.isFinite(limit)) limit = 28;
   limit = Math.min(50, Math.max(4, Math.floor(limit)));
+  const nextRid =
+    (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
+    (typeof q.cursor === "string" ? q.cursor.trim() : "");
+  const forceFresh = q.fresh === "1" || q.fresh === "true";
   try {
     if (meta.mode === "featured") {
-      const data = (await recombeeRecommendItemsToUser("anonymous", limit)) as Record<string, unknown>;
-      const recomms = Array.isArray(data.recomms) ? data.recomms : [];
+      let data: Record<string, unknown>;
+      if (forceFresh) {
+        data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+          string,
+          unknown
+        >;
+      } else if (nextRid) {
+        try {
+          data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
+        } catch (e) {
+          if (e instanceof RecombeeHttpError) {
+            data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+              string,
+              unknown
+            >;
+          } else {
+            throw e;
+          }
+        }
+      } else {
+        data = (await recombeeRecommendItemsToUser("anonymous", limit, FEATURED_TO_USER_OPTS)) as Record<
+          string,
+          unknown
+        >;
+      }
+      const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
+      const recomms = dedupeFeaturedRecomms(rawRecomms);
+      noStoreLocale(reply);
       return {
         category: meta.key,
         label: meta.label,
         description: meta.description,
         source: "featured" as const,
         recomms,
-        recomId: data.recomId ?? null,
+        recomId: pickRecomId(data),
       };
     }
     const qtext = (meta.searchQuery ?? "").trim();
     if (!qtext) {
       return sendError(reply, 500, "CONFIG", "分類缺少搜尋關鍵字");
     }
-    const data = (await recombeeSearch(qtext, limit)) as Record<string, unknown>;
-    const recomms = Array.isArray(data.recomms) ? data.recomms : [];
+    let data: Record<string, unknown>;
+    if (forceFresh || !nextRid) {
+      data = (await recombeeSearch(qtext, limit)) as Record<string, unknown>;
+    } else {
+      try {
+        data = (await recombeeRecommendNextItems(nextRid, limit)) as Record<string, unknown>;
+      } catch (e) {
+        if (e instanceof RecombeeHttpError) {
+          data = (await recombeeSearch(qtext, limit)) as Record<string, unknown>;
+        } else {
+          throw e;
+        }
+      }
+    }
+    const rawRecomms = Array.isArray(data.recomms) ? data.recomms : [];
+    const recomms = dedupeFeaturedRecomms(rawRecomms);
+    noStoreLocale(reply);
     return {
       category: meta.key,
       label: meta.label,
@@ -238,6 +321,7 @@ app.get("/api/browse/:category", async (request, reply) => {
       source: "search" as const,
       searchQuery: qtext,
       recomms,
+      recomId: pickRecomId(data),
       numberNext: data.numberNext ?? null,
     };
   } catch (e) {
@@ -349,7 +433,7 @@ app.get("/api/thumbnail/:slug", async (request, reply) => {
       return sendError(reply, 404, "NO_THUMB", "找不到封面網址");
     }
     const res = await upstreamFetch(thumbUrl, {
-      headers: CDN_HEADERS,
+      headers: buildCdnMediaHeaders(pageUrl, "image"),
       signal: AbortSignal.timeout(45_000),
     });
     if (!res.ok) {
@@ -386,7 +470,7 @@ app.get("/api/stream", async (request, reply) => {
   let res: Awaited<ReturnType<typeof upstreamFetch>>;
   try {
     res = await upstreamFetch(payload.target, {
-      headers: CDN_HEADERS,
+      headers: buildCdnMediaHeaders(`${config.missavBaseUrl}/`, "media"),
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e) {
@@ -436,9 +520,13 @@ app.post("/api/downloads", async (request, reply) => {
   if (!slug) {
     return sendError(reply, 400, "BAD_BODY", "缺少 slug");
   }
-  const done = findCompletedJobForSlug(slug, quality);
+  const done = await findCompletedJobForSlug(slug, quality);
   if (done) {
     return { jobId: done.id, reused: true };
+  }
+  const active = await findActiveJobForSlug(slug, quality);
+  if (active) {
+    return { jobId: active.id, reused: true };
   }
   const pythonOk = await checkPythonMissav();
   if (!pythonOk) {
@@ -446,7 +534,7 @@ app.post("/api/downloads", async (request, reply) => {
   }
   await fs.mkdir(config.downloadDir, { recursive: true });
   const pageBase = resolveMissavBaseFromRequest(request);
-  const job = createDownloadJob(slug, quality, pageBase);
+  const job = await createDownloadJob(slug, quality, pageBase);
   return { jobId: job.id, reused: false };
 });
 
@@ -458,7 +546,7 @@ app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
   }
   const q = request.query as { quality?: string };
   const quality = (q.quality ?? "best").trim();
-  const done = findCompletedJobForSlug(slug, quality);
+  const done = await findCompletedJobForSlug(slug, quality);
   if (done) {
     return {
       ready: true,
@@ -468,7 +556,7 @@ app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
       filename: done.filename ?? null,
     };
   }
-  const active = findActiveJobForSlug(slug, quality);
+  const active = await findActiveJobForSlug(slug, quality);
   if (active) {
     return {
       ready: false,
@@ -481,25 +569,72 @@ app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
   return { ready: false, active: false, jobId: null, status: null, filename: null };
 });
 
+app.get("/api/favorites", async () => {
+  const rows = await prisma.favorite.findMany({ orderBy: { createdAt: "desc" } });
+  return {
+    items: rows.map((r) => ({
+      slug: r.slug,
+      title: r.title,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  };
+});
+
+app.get("/api/favorites/status/:slug", async (request, reply) => {
+  const raw = (request.params as { slug: string }).slug;
+  const slug = decodeURIComponent(raw ?? "").trim();
+  if (!isValidContentSlug(slug)) {
+    return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
+  }
+  const row = await prisma.favorite.findUnique({ where: { slug } });
+  return { favorited: Boolean(row) };
+});
+
+app.post("/api/favorites", async (request, reply) => {
+  const body = request.body as { slug?: string; title?: string | null };
+  const slug = (body?.slug ?? "").trim();
+  if (!isValidContentSlug(slug)) {
+    return sendError(reply, 400, "BAD_BODY", "無效的 slug");
+  }
+  const title = body?.title != null ? String(body.title).trim().slice(0, 500) || null : null;
+  await prisma.favorite.upsert({
+    where: { slug },
+    create: { slug, title },
+    update: { title },
+  });
+  return { ok: true as const };
+});
+
+app.delete("/api/favorites/:slug", async (request, reply) => {
+  const raw = (request.params as { slug: string }).slug;
+  const slug = decodeURIComponent(raw ?? "").trim();
+  if (!isValidContentSlug(slug)) {
+    return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
+  }
+  await prisma.favorite.deleteMany({ where: { slug } });
+  return { ok: true as const };
+});
+
 app.get("/api/downloads/:jobId", async (request, reply) => {
   const { jobId } = request.params as { jobId: string };
-  const job = getJob(jobId);
+  const job = await getJob(jobId);
   if (!job) {
     return sendError(reply, 404, "NOT_FOUND", "找不到下載工作");
   }
+  const queue = await getDownloadQueueStats();
   return {
     id: job.id,
     status: job.status,
     slug: job.slug,
     filename: job.filename,
     message: job.message,
-    queue: getDownloadQueueStats(),
+    queue,
   };
 });
 
 app.get("/api/downloads/:jobId/file", async (request, reply) => {
   const { jobId } = request.params as { jobId: string };
-  const job = getJob(jobId);
+  const job = await getJob(jobId);
   if (!job) {
     return sendError(reply, 404, "NOT_FOUND", "找不到下載工作");
   }
@@ -519,6 +654,8 @@ app.get("/api/downloads/:jobId/file", async (request, reply) => {
     .send(stream);
 });
 
+await fs.mkdir(path.join(config.projectRoot, "data"), { recursive: true });
+await markAbortedJobsAfterRestart();
 void pruneOldJobs();
 
 const port = config.port;
