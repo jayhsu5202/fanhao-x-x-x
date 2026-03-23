@@ -27,7 +27,7 @@ import {
   getVideoPageFetchQueueStats,
   parseVideoHtml,
 } from "./lib/missav-page.js";
-import { getBrowseCategoryMeta, getBrowseSubcategoryMeta, listBrowseSubcategories } from "./lib/browse-categories.js";
+import { getBrowseCategoryMeta } from "./lib/browse-categories.js";
 import { orderSearchRecommsForMode, parseSearchSortMode } from "./lib/recombee-search-sort.js";
 import {
   hyphenStudioSearchQuery,
@@ -404,26 +404,23 @@ app.get("/api/featured", async (request, reply) => {
   }
 });
 
-type BrowseQuery = {
-  limit?: string;
-  recommId?: string;
-  cursor?: string;
-  fresh?: string;
-  sort?: string;
-  sub?: string;
-};
-
-type BrowseTargetMeta = {
-  categoryKey: string;
-  subcategoryKey?: string;
-  label: string;
-  description: string;
-  sourceMode: "featured" | "filtered" | "search";
-  searchQuery?: string;
-  catalogFilter?: string;
-};
-
-function normalizeBrowseQuery(q: BrowseQuery) {
+/**
+ * 分類瀏覽（對應前端 /c/jav、/c/amateur 等）。
+ * jav → 匿名趨勢；amateur／uncensored／madou → 目錄欄位 ReQL 篩選後趨勢（召回大於純關鍵字搜尋）。
+ */
+app.get("/api/browse/:category", async (request, reply) => {
+  const raw = (request.params as { category: string }).category?.trim() ?? "";
+  const meta = getBrowseCategoryMeta(raw);
+  if (!meta) {
+    return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
+  }
+  const q = request.query as {
+    limit?: string;
+    recommId?: string;
+    cursor?: string;
+    fresh?: string;
+    sort?: string;
+  };
   const def = config.recombeeFeedDefaultBatch;
   const max = config.recombeeFeedRequestMax;
   let limit = q.limit != null ? Number(q.limit) : def;
@@ -432,24 +429,16 @@ function normalizeBrowseQuery(q: BrowseQuery) {
   const nextRid =
     (typeof q.recommId === "string" ? q.recommId.trim() : "") ||
     (typeof q.cursor === "string" ? q.cursor.trim() : "");
-  return {
-    limit,
-    nextRid,
-    forceFresh: q.fresh === "1" || q.fresh === "true",
-    sortMode: parseSearchSortMode(q.sort),
-  };
-}
-
-async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: BrowseQuery) {
-  const { limit, nextRid, forceFresh, sortMode } = normalizeBrowseQuery(q);
+  const forceFresh = q.fresh === "1" || q.fresh === "true";
+  const sortMode = parseSearchSortMode(q.sort);
   try {
-    if (meta.sourceMode === "featured" || meta.sourceMode === "filtered") {
-      const cf = meta.sourceMode === "filtered" ? meta.catalogFilter?.trim() : "";
-      if (meta.sourceMode === "filtered" && !cf) {
+    if (meta.mode === "featured" || meta.mode === "filtered") {
+      const cf = meta.mode === "filtered" ? meta.catalogFilter?.trim() : "";
+      if (meta.mode === "filtered" && !cf) {
         return sendError(reply, 500, "CONFIG", "分類缺少 catalogFilter");
       }
       const recommendOpts =
-        meta.sourceMode === "filtered" && cf ? { ...FEATURED_TO_USER_OPTS, filter: cf } : FEATURED_TO_USER_OPTS;
+        meta.mode === "filtered" && cf ? { ...FEATURED_TO_USER_OPTS, filter: cf } : FEATURED_TO_USER_OPTS;
 
       let data: Record<string, unknown>;
       if (forceFresh) {
@@ -474,43 +463,21 @@ async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: B
       const recomms = dedupeFeaturedRecomms(rawRecomms);
       const recomId = pickRecomId(data);
       const hasMore = recombeeHasMorePages(rawRecomms, limit, recomId);
-      if (recomms.length === 0 && !nextRid && meta.searchQuery?.trim()) {
-        const fallbackQuery = meta.searchQuery.trim();
-        const fallback = await recombeeSearchFirstPageWithRecall(fallbackQuery, limit);
-        const fallbackRaw = Array.isArray(fallback.recomms) ? fallback.recomms : [];
-        const fallbackDeduped = dedupeFeaturedRecomms(fallbackRaw);
-        const fallbackOrdered = orderSearchRecommsForMode(fallbackQuery, fallbackDeduped, sortMode);
-        const fallbackRecomId = pickRecomId(fallback);
-        const fallbackHasMore =
-          fallbackOrdered.length > limit || recombeeHasMorePages(fallbackRaw, limit, fallbackRecomId);
-        noStoreLocale(reply);
-        return {
-          category: meta.categoryKey,
-          subcategory: meta.subcategoryKey ?? null,
-          label: meta.label,
-          description: meta.description,
-          source: "search" as const,
-          searchQuery: fallbackQuery,
-          recomms: fallbackOrdered.slice(0, limit),
-          recomId: fallbackRecomId,
-          hasMore: fallbackHasMore,
-          sort: sortMode,
-          numberNext: fallback.numberNext ?? null,
-        };
-      }
       noStoreLocale(reply);
       return {
-        category: meta.categoryKey,
-        subcategory: meta.subcategoryKey ?? null,
+        category: meta.key,
         label: meta.label,
         description: meta.description,
-        source: meta.sourceMode,
+        source: meta.mode === "filtered" ? ("filtered" as const) : ("featured" as const),
         recomms,
         recomId,
         hasMore,
       };
     }
 
+    if (meta.mode !== "search") {
+      return sendError(reply, 500, "CONFIG", "未知的分類模式");
+    }
     const qtext = (meta.searchQuery ?? "").trim();
     if (!qtext) {
       return sendError(reply, 500, "CONFIG", "分類缺少搜尋關鍵字");
@@ -534,11 +501,11 @@ async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: B
     const ordered = orderSearchRecommsForMode(qtext, dedupedSearch, sortMode);
     const recomms = ordered.slice(0, limit);
     const recomId = pickRecomId(data);
-    const hasMore = ordered.length > limit || recombeeHasMorePages(rawRecomms, limit, recomId);
+    const hasMore =
+      ordered.length > limit || recombeeHasMorePages(rawRecomms, limit, recomId);
     noStoreLocale(reply);
     return {
-      category: meta.categoryKey,
-      subcategory: meta.subcategoryKey ?? null,
+      category: meta.key,
       label: meta.label,
       description: meta.description,
       source: "search" as const,
@@ -553,106 +520,6 @@ async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: B
     const msg = e instanceof Error ? e.message : String(e);
     return sendError(reply, 502, "RECOMBEE_ERROR", "分類內容載入失敗", { detail: msg });
   }
-}
-
-/**
- * 分類瀏覽（對應前端 /c/jav、/c/amateur 等）。
- * jav → 匿名趨勢；amateur／uncensored／madou → 目錄欄位 ReQL 篩選後趨勢（召回大於純關鍵字搜尋）。
- */
-app.get("/api/browse/:category", async (request, reply) => {
-  const raw = (request.params as { category: string }).category?.trim() ?? "";
-  const q = request.query as BrowseQuery;
-  const sub = (typeof q.sub === "string" ? q.sub : "").trim();
-  if (sub) {
-    const subMeta = getBrowseSubcategoryMeta(raw, sub);
-    if (!subMeta) {
-      return sendError(reply, 404, "NOT_FOUND", "未知的子分類", {
-        category: raw,
-        subcategory: sub,
-      });
-    }
-    const res = await runBrowseTarget(
-      reply,
-      {
-        categoryKey: subMeta.categoryKey,
-        subcategoryKey: subMeta.key,
-        label: subMeta.label,
-        description: subMeta.description,
-        sourceMode: subMeta.mode,
-        searchQuery: subMeta.searchQuery,
-        catalogFilter: subMeta.catalogFilter,
-      },
-      q
-    );
-    if (!res || typeof res !== "object" || Array.isArray(res) || "error" in res) {
-      return res;
-    }
-    return {
-      ...res,
-      subcategoryLabel: subMeta.label,
-      siblingSubcategories: listBrowseSubcategories(subMeta.categoryKey).map((item) => ({
-        key: item.key,
-        label: item.label,
-        description: item.description,
-      })),
-    };
-  }
-  const meta = getBrowseCategoryMeta(raw);
-  if (!meta) {
-    return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
-  }
-  const res = await runBrowseTarget(reply, {
-    categoryKey: meta.key,
-    label: meta.label,
-    description: meta.description,
-    sourceMode: meta.mode,
-    searchQuery: meta.searchQuery,
-    catalogFilter: meta.catalogFilter,
-  }, q);
-  if (!res || typeof res !== "object" || Array.isArray(res) || "error" in res) {
-    return res;
-  }
-  return {
-    ...res,
-    subcategories: listBrowseSubcategories(meta.key).map((item) => ({
-      key: item.key,
-      label: item.label,
-      description: item.description,
-    })),
-  };
-});
-
-app.get("/api/browse/:category/:subcategory", async (request, reply) => {
-  const params = request.params as { category: string; subcategory: string };
-  const meta = getBrowseSubcategoryMeta(params.category, params.subcategory);
-  if (!meta) {
-    return sendError(reply, 404, "NOT_FOUND", "未知的子分類", {
-      category: params.category,
-      subcategory: params.subcategory,
-    });
-  }
-  const q = request.query as BrowseQuery;
-  const res = await runBrowseTarget(reply, {
-    categoryKey: meta.categoryKey,
-    subcategoryKey: meta.key,
-    label: meta.label,
-    description: meta.description,
-    sourceMode: meta.mode,
-    searchQuery: meta.searchQuery,
-    catalogFilter: meta.catalogFilter,
-  }, q);
-  if (!res || typeof res !== "object" || Array.isArray(res) || "error" in res) {
-    return res;
-  }
-  return {
-    ...res,
-    subcategoryLabel: meta.label,
-    siblingSubcategories: listBrowseSubcategories(meta.categoryKey).map((item) => ({
-      key: item.key,
-      label: item.label,
-      description: item.description,
-    })),
-  };
 });
 
 /** 詳情頁關聯推薦（也可看看）。 */
