@@ -24,6 +24,9 @@ export function applyBitrateAwareBufferTargets(hls: Hls): void {
 
   const cfg = hls.config;
 
+  /** 瀏覽器 MSE 實務上限附近易觸發 GC／QuotaExceeded；與下方分級無關的最後一道上限 */
+  const ABSOLUTE_MAX_BUFFER_BYTES = 140 * 1000 * 1000;
+
   /** 目標「至少」累積的前向秒數（與 maxBufferSize 公式對齊） */
   let targetSec = 180;
   /** 硬上限秒數（給願意緩很久／暫停預載） */
@@ -63,6 +66,11 @@ export function applyBitrateAwareBufferTargets(hls: Hls): void {
     maxBytes = Math.floor(maxBytes * 0.82);
     maxSec = Math.min(maxSec, 1200);
   }
+
+  maxBytes = Math.min(maxBytes, ABSOLUTE_MAX_BUFFER_BYTES);
+  const maxSecAffordable = Math.max(1, Math.floor((maxBytes * 8) / maxBps));
+  targetSec = Math.min(targetSec, maxSecAffordable);
+  maxSec = Math.min(Math.max(maxSec, targetSec), maxSecAffordable * 2);
 
   cfg.maxBufferLength = targetSec;
   cfg.maxMaxBufferLength = maxSec;

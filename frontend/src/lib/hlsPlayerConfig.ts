@@ -40,8 +40,8 @@ export const hlsConfigProxiedStream: Partial<HlsConfig> = {
       maxLoadTimeMs: 180_000,
       timeoutRetry: {
         maxNumRetry: 5,
-        retryDelayMs: 0,
-        maxRetryDelayMs: 0,
+        retryDelayMs: 1000,
+        maxRetryDelayMs: 5000,
       },
       errorRetry: {
         maxNumRetry: 8,

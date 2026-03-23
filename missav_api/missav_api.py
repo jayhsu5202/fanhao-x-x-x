@@ -9,7 +9,7 @@ from base_api import BaseCore
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 from functools import cached_property
-from typing import Optional, Generator, List
+from typing import Any, List, Optional, Generator
 from base_api.base import setup_logger, Helper
 from base_api.modules.config import RuntimeConfig
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -80,9 +80,26 @@ class Video:
         self.core.enable_logging(level=logging.DEBUG)
         self.logger = setup_logger(name="MISSAV API - [Video]", log_file=None, level=logging.CRITICAL)
         self.content = self.core.fetch(url)
-        self.soup = BeautifulSoup(self.content, parser)
-        _meta_div = self.soup.find("div", class_="space-y-2")
-        self.meta_divs = _meta_div.find_all("div", class_="text-secondary")
+        self._soup: Optional[Any] = None
+        self._meta_divs: Optional[List[Any]] = None
+
+    def _ensure_dom(self) -> None:
+        """BeautifulSoup 僅在需要標題／meta 時建立；m3u8／縮圖僅用正則於 self.content。"""
+        if self._soup is not None:
+            return
+        self._soup = BeautifulSoup(self.content, parser)
+        _meta_div = self._soup.find("div", class_="space-y-2")
+        self._meta_divs = _meta_div.find_all("div", class_="text-secondary")
+
+    @property
+    def soup(self):
+        self._ensure_dom()
+        return self._soup
+
+    @property
+    def meta_divs(self):
+        self._ensure_dom()
+        return self._meta_divs
 
     def enable_logging(self, level, log_file: str = None):
         self.logger = setup_logger(name="MISSAV API - [Video]", log_file=log_file, level=level)
