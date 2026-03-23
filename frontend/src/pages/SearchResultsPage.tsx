@@ -141,11 +141,7 @@ export default function SearchResultsPage() {
                   發行：舊→新
                 </button>
               </div>
-              {sortMode !== "relevance" ? (
-                <p className="search-sort-hint">
-                  依目錄欄位 <code className="inline-code">released_at</code>；無發行日的項目排在最後。已載入的批次會合併重排。
-                </p>
-              ) : null}
+              {sortMode !== "relevance" ? <p className="search-sort-hint">目前結果已依發行時間重新排序。</p> : null}
             </div>
           </>
         ) : (

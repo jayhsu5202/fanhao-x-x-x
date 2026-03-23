@@ -117,7 +117,9 @@ export default function VideoCard({
             ))}
           </div>
           <Link to={videoTo} state={{ detailPeek: item }} className="card-title-link">
-            <p className="title">{title}</p>
+            <p className="title" title={title}>
+              {title}
+            </p>
           </Link>
         </div>
       </div>

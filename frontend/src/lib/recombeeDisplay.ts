@@ -13,7 +13,7 @@ export function pickTitle(v: Record<string, unknown> | undefined, id: string): s
   return id;
 }
 
-export const LIST_CHIPS_MAX = 3;
+export const LIST_CHIPS_MAX = 2;
 
 export function pickListChips(v: Record<string, unknown> | undefined, max: number): string[] {
   if (!v) return [];

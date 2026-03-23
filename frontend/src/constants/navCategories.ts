@@ -1,13 +1,16 @@
-/**
- * 頂層分類 + 子選單：一律本站 SPA（`/c/*`、`/search?q=`），不開外部分頁。
- */
 export type NavCategoryKey = "jav" | "amateur" | "uncensored" | "madou";
 
-export type NavMenuChild = { label: string; to: string };
+export type NavMenuChild = {
+  key: string;
+  label: string;
+  description: string;
+  to: string;
+};
 
 export type NavMenuItem = {
   key: NavCategoryKey;
   label: string;
+  description: string;
   to: string;
   children: readonly NavMenuChild[];
 };
@@ -16,52 +19,65 @@ export const NAV_MENU: readonly NavMenuItem[] = [
   {
     key: "jav",
     label: "觀看日本 AV",
+    description: "綜合熱門與趨勢的主分類入口。",
     to: "/c/jav",
     children: [
-      { label: "最近更新", to: "/search?q=最新" },
-      { label: "新作上市", to: "/search?q=新作" },
-      { label: "無碼流出", to: "/search?q=無碼流出" },
-      { label: "中文字幕", to: "/search?q=中文字幕" },
-      { label: "女優", to: "/search?q=女優" },
-      { label: "類型", to: "/search?q=類型" },
-      { label: "發行商", to: "/search?q=發行商" },
+      { key: "subtitles", label: "中文字幕", description: "帶中文字幕的熱門片單。", to: "/c/jav/subtitles" },
+      { key: "new-release", label: "新作上市", description: "以新作相關內容聚合。", to: "/c/jav/new-release" },
+      { key: "recent", label: "最近更新", description: "近期更新與熱門題材。", to: "/c/jav/recent" },
     ],
   },
   {
     key: "amateur",
     label: "素人",
+    description: "聚焦素人題材與相關熱門內容。",
     to: "/c/amateur",
     children: [
-      { label: "素人精選", to: "/c/amateur" },
-      { label: "素人搜尋", to: "/search?q=素人" },
-      { label: "FC2", to: "/search?q=FC2" },
+      { key: "featured", label: "素人精選", description: "素人題材的熱門推薦。", to: "/c/amateur/featured" },
+      { key: "fc2", label: "FC2", description: "聚焦 FC2 系列與相關作品。", to: "/c/amateur/fc2" },
+      { key: "subtitles", label: "中文字幕", description: "帶中文字幕的素人內容。", to: "/c/amateur/subtitles" },
     ],
   },
   {
     key: "uncensored",
     label: "無碼影片",
+    description: "聚焦無碼流出與相關熱門片單。",
     to: "/c/uncensored",
     children: [
-      { label: "無碼列表", to: "/c/uncensored" },
-      { label: "無碼流出", to: "/search?q=無碼流出" },
-      { label: "無碼關鍵字", to: "/search?q=無碼" },
+      { key: "featured", label: "無碼精選", description: "無碼流出與相關熱門片單。", to: "/c/uncensored/featured" },
+      { key: "subtitles", label: "中文字幕", description: "帶中文字幕的無碼相關內容。", to: "/c/uncensored/subtitles" },
+      { key: "keyword", label: "無碼關鍵字", description: "無碼主題的延伸結果。", to: "/c/uncensored/keyword" },
     ],
   },
   {
     key: "madou",
     label: "亞洲 AV",
+    description: "聚焦亞洲與麻豆主題的熱門內容。",
     to: "/c/madou",
     children: [
-      { label: "亞洲精選", to: "/c/madou" },
-      { label: "麻豆傳媒", to: "/search?q=麻豆傳媒" },
-      { label: "國產", to: "/search?q=國產" },
-      { label: "MD", to: "/search?q=MD" },
+      { key: "featured", label: "亞洲精選", description: "亞洲與麻豆主題的熱門內容。", to: "/c/madou/featured" },
+      { key: "md", label: "MD", description: "聚焦 MD 系列相關內容。", to: "/c/madou/md" },
+      { key: "domestic", label: "國產精選", description: "國產與亞洲代理主題。", to: "/c/madou/domestic" },
     ],
   },
-];
+] as const;
 
-export const NAV_CATEGORIES = NAV_MENU.map((m) => ({ key: m.key, label: m.label, to: m.to }));
+export const NAV_CATEGORIES = NAV_MENU.map((m) => ({
+  key: m.key,
+  label: m.label,
+  description: m.description,
+  to: m.to,
+}));
 
 export function isNavCategoryKey(s: string): s is NavCategoryKey {
   return NAV_MENU.some((m) => m.key === s);
+}
+
+export function getNavCategory(key: string): NavMenuItem | undefined {
+  return NAV_MENU.find((m) => m.key === key);
+}
+
+export function getNavSubcategory(categoryKey: string, subcategoryKey: string): NavMenuChild | undefined {
+  const category = getNavCategory(categoryKey);
+  return category?.children.find((item) => item.key === subcategoryKey);
 }

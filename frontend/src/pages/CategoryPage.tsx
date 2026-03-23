@@ -2,65 +2,86 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard from "../components/VideoCard";
+import { getNavCategory, getNavSubcategory, isNavCategoryKey } from "../constants/navCategories";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import { useInfiniteRecombeeFeed, type RecombeeFeedResponse } from "../hooks/useInfiniteRecombeeFeed";
-import { isNavCategoryKey, NAV_MENU } from "../constants/navCategories";
+
+type BrowseNavItem = {
+  key: string;
+  label: string;
+  description: string;
+};
 
 type BrowseMetaRes = {
   category: string;
+  subcategory?: string | null;
+  subcategoryLabel?: string | null;
   label: string;
   description: string;
   source: "featured" | "filtered" | "search";
   searchQuery?: string;
+  subcategories?: BrowseNavItem[];
+  siblingSubcategories?: BrowseNavItem[];
 };
 
 type BrowseFirstPayload = BrowseMetaRes & RecombeeFeedResponse;
 
-/** 後端 /api/browse 單次上限 50 */
 const CATEGORY_LIMIT = 50;
 
 export default function CategoryPage() {
   const { locale } = useMissavLocale();
-  const { category = "" } = useParams<{ category: string }>();
-  const valid = isNavCategoryKey(category);
-  const catMenu = valid ? NAV_MENU.find((m) => m.key === category) : undefined;
+  const { category = "", subcategory = "" } = useParams<{ category: string; subcategory?: string }>();
+  const validCategory = isNavCategoryKey(category);
+  const categoryNav = validCategory ? getNavCategory(category) : undefined;
+  const subcategoryNav = validCategory && subcategory ? getNavSubcategory(category, subcategory) : undefined;
+  const valid = validCategory && (!subcategory || Boolean(subcategoryNav));
 
   const [meta, setMeta] = useState<BrowseMetaRes | null>(null);
 
   useEffect(() => {
     setMeta(null);
-  }, [category]);
+  }, [category, subcategory]);
 
   const onInitialResponse = useCallback((data: unknown) => {
     const d = data as BrowseFirstPayload;
     if (typeof d.label !== "string") return;
     setMeta({
       category: d.category,
+      subcategory: typeof d.subcategory === "string" ? d.subcategory : null,
+      subcategoryLabel: typeof d.subcategoryLabel === "string" ? d.subcategoryLabel : null,
       label: d.label,
       description: typeof d.description === "string" ? d.description : "",
       source: d.source === "search" ? "search" : d.source === "filtered" ? "filtered" : "featured",
-      searchQuery: d.searchQuery,
+      searchQuery: typeof d.searchQuery === "string" ? d.searchQuery : undefined,
+      subcategories: Array.isArray(d.subcategories) ? d.subcategories : undefined,
+      siblingSubcategories: Array.isArray(d.siblingSubcategories) ? d.siblingSubcategories : undefined,
     });
   }, []);
 
-  const getInitialUrl = useCallback(
-    () => `/api/browse/${encodeURIComponent(category)}?limit=${CATEGORY_LIMIT}`,
-    [category]
-  );
+  const getInitialUrl = useCallback(() => {
+    const path = subcategory
+      ? `/api/browse/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`
+      : `/api/browse/${encodeURIComponent(category)}`;
+    return `${path}?limit=${CATEGORY_LIMIT}`;
+  }, [category, subcategory]);
+
   const getMoreUrl = useCallback(
     ({ useNext, recommId }: { useNext: boolean; recommId: string | null }) => {
-      const base = `/api/browse/${encodeURIComponent(category)}?limit=${CATEGORY_LIMIT}`;
+      const path = subcategory
+        ? `/api/browse/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`
+        : `/api/browse/${encodeURIComponent(category)}`;
+      const base = `${path}?limit=${CATEGORY_LIMIT}`;
       if (useNext && recommId) {
         return `${base}&recommId=${encodeURIComponent(recommId)}`;
       }
       return `${base}&fresh=1&_cb=${Date.now()}`;
     },
-    [category]
+    [category, subcategory]
   );
 
   const { items, initialLoading, loadingMore, err, sentinelRef, feedHasMore } = useInfiniteRecombeeFeed({
     pageSize: CATEGORY_LIMIT,
-    resetKey: `${category}|${locale}`,
+    resetKey: `${category}|${subcategory}|${locale}`,
     enabled: valid,
     getInitialUrl,
     getMoreUrl,
@@ -68,6 +89,18 @@ export default function CategoryPage() {
     loadMoreErrorLabel: "載入更多失敗",
     onInitialResponse,
   });
+
+  const currentTitle =
+    meta?.subcategoryLabel ??
+    meta?.label ??
+    subcategoryNav?.label ??
+    categoryNav?.label ??
+    "";
+  const currentDescription =
+    meta?.description || subcategoryNav?.description || categoryNav?.description || "";
+  const navItems = subcategory
+    ? meta?.siblingSubcategories ?? categoryNav?.children ?? []
+    : meta?.subcategories ?? categoryNav?.children ?? [];
 
   if (!valid) {
     return (
@@ -92,29 +125,44 @@ export default function CategoryPage() {
         <nav className="category-breadcrumb" aria-label="麵包屑">
           <Link to="/">首頁</Link>
           <span aria-hidden> / </span>
-          <span>{initialLoading && !meta ? "…" : meta?.label ?? category}</span>
+          <Link to={categoryNav?.to ?? "/"}>{categoryNav?.label ?? category}</Link>
+          {subcategory ? (
+            <>
+              <span aria-hidden> / </span>
+              <span>{initialLoading && !meta ? "…" : currentTitle}</span>
+            </>
+          ) : null}
         </nav>
 
         <header className="category-hero">
-          <h1 className="category-title">{initialLoading && !meta ? "載入中…" : meta?.label ?? ""}</h1>
-          {!initialLoading && meta ? <p className="category-desc">{meta.description}</p> : null}
-          {!initialLoading && meta?.source === "search" && meta.searchQuery ? (
-            <p className="category-tech">
-              搜尋關鍵字：<code className="inline-code">{meta.searchQuery}</code>
-            </p>
-          ) : null}
-          {!initialLoading && meta?.source === "filtered" ? (
-            <p className="category-tech">資料源：依 Recombee 目錄欄位篩選後的站內趨勢（可持續捲動載入）</p>
-          ) : null}
-          <p className="category-scroll-hint msg-muted">往下滑自動載入更多</p>
-          {catMenu && catMenu.children.length > 0 ? (
-            <nav className="category-submenu" aria-label="此分類子選單">
-              {catMenu.children.map((ch) => (
-                <Link key={`${ch.label}-${ch.to}`} className="category-submenu-link" to={ch.to}>
-                  {ch.label}
-                </Link>
-              ))}
+          <p className="category-kicker">{subcategory ? categoryNav?.label : "分類瀏覽"}</p>
+          <h1 className="category-title">{initialLoading && !meta ? "載入中…" : currentTitle}</h1>
+          {currentDescription ? <p className="category-desc">{currentDescription}</p> : null}
+          <p className="category-scroll-hint msg-muted">往下滑載入更多</p>
+          {navItems.length > 0 ? (
+            <nav className="category-submenu" aria-label={subcategory ? "同分類切換" : "此分類子選單"}>
+              {navItems.map((item) => {
+                const to = `/c/${encodeURIComponent(category)}/${encodeURIComponent(item.key)}`;
+                const active = subcategory ? item.key === subcategory : false;
+                return (
+                  <Link
+                    key={`${item.key}-${item.label}`}
+                    className={`category-submenu-link${active ? " is-active" : ""}`}
+                    to={to}
+                    title={item.description}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
+          ) : null}
+          {subcategory ? (
+            <p className="category-back-row">
+              <Link className="back-link" to={categoryNav?.to ?? "/"}>
+                ← 返回 {categoryNav?.label}
+              </Link>
+            </p>
           ) : null}
         </header>
 
@@ -127,7 +175,8 @@ export default function CategoryPage() {
                 <div className="card-thumb skeleton" style={{ minHeight: 120 }} />
                 <div className="card-body">
                   <div className="skeleton" style={{ height: 10, width: "40%" }} />
-                  <div className="skeleton" style={{ height: 14, marginTop: 8, width: "100%" }} />
+                  <div className="skeleton" style={{ height: 18, width: "100%" }} />
+                  <div className="skeleton" style={{ height: 14, width: "88%" }} />
                 </div>
               </div>
             ))}
@@ -135,8 +184,8 @@ export default function CategoryPage() {
         ) : null}
 
         {!initialLoading && items.length === 0 && !err ? (
-          <p className="msg-muted" style={{ textAlign: "left", padding: "1rem 0" }}>
-            此分類暫無結果，請改從首頁搜尋或其它分類進入。
+          <p className="msg-muted category-empty-msg">
+            {subcategory ? "這個子分類暫時沒有結果，請先改看同類別的其他片單。" : "此分類暫時沒有結果，請改看其他分類。"}
           </p>
         ) : null}
 
@@ -153,11 +202,19 @@ export default function CategoryPage() {
 
         {!initialLoading && items.length > 0 && !feedHasMore ? (
           <p className="msg-muted infinite-feed-end" role="status">
-            已載入本分類全部結果
+            已載入目前片單
           </p>
         ) : null}
 
-        <p className="footer-note">僅供合法授權內容使用；分類內容由推薦／搜尋引擎自動產生。</p>
+        <p className="footer-note">
+          {subcategory && meta?.searchQuery ? (
+            <>
+              內容已整理成固定入口。
+              <span aria-hidden> · </span>
+            </>
+          ) : null}
+          僅供合法授權內容使用。
+        </p>
       </main>
     </div>
   );

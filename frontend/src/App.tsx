@@ -12,6 +12,7 @@ export default function App() {
       <Route path="/favorites" element={<FavoritesPage />} />
       <Route path="/search" element={<SearchResultsPage />} />
       <Route path="/c/:category" element={<CategoryPage />} />
+      <Route path="/c/:category/:subcategory" element={<CategoryPage />} />
       <Route path="/v/:slug" element={<VideoPage />} />
     </Routes>
   );

@@ -54,7 +54,7 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
                 </Link>
                 <div className="nav-mega-links">
                   {m.children.map((ch) => (
-                    <Link key={`${m.key}-${ch.label}`} to={ch.to}>
+                    <Link key={`${m.key}-${ch.label}`} to={ch.to} title={ch.description}>
                       {ch.label}
                     </Link>
                   ))}
@@ -114,6 +114,7 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
                     key={`${m.key}-${ch.label}`}
                     className="site-nav-panel-sublink"
                     to={ch.to}
+                    title={ch.description}
                     onClick={() => setOpen(false)}
                   >
                     {ch.label}

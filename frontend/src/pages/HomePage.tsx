@@ -51,12 +51,12 @@ export default function HomePage() {
     <div className="page-shell home-fanhao">
       <SiteHeader />
       <header className="app-header app-header-hero">
-        <p className="home-kicker">免費高清 · 本站聚合瀏覽</p>
+        <p className="home-kicker">分類瀏覽 · 熱門推薦</p>
         <h1 className="home-hero-title">
           搜尋任何<span className="home-hero-accent"> 日本AV</span>
         </h1>
         <div className="header-top">
-          <span className="header-tag">搜尋 · 分類 · 詳情 · 播放 · 下載</span>
+          <span className="header-tag">搜尋 · 分類 · 收藏</span>
         </div>
         <form className="search-bar search-bar-hero" onSubmit={onSubmit} id="search">
           <input
@@ -70,8 +70,7 @@ export default function HomePage() {
           <button type="submit">搜尋</button>
         </form>
         <p className="hero-sub">
-          使用上方搜尋會前往<strong> 獨立搜尋頁 </strong>顯示結果。
-          <strong> 語系按鈕 </strong>影響詳情與縮圖。熱門推薦往下滑會自動載入更多。
+          先用搜尋找番號、女優或關鍵字，也可以直接從上方分類進入固定片單。熱門推薦往下滑會自動載入更多。
         </p>
       </header>
       <main className="main-pad">
@@ -113,7 +112,7 @@ export default function HomePage() {
           ) : null}
         </section>
 
-        <p className="footer-note">僅供合法授權內容使用；請遵守來源站與法律規範。</p>
+        <p className="footer-note">僅供合法授權內容使用。</p>
       </main>
     </div>
   );
