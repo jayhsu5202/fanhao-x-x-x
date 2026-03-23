@@ -84,6 +84,14 @@ export const config = {
     const t = (process.env.STREAM_REQUEST_LOG ?? "").trim().toLowerCase();
     return t === "1" || t === "true" || t === "on" || t === "info";
   })(),
+  /**
+   * 每筆 `/api/stream` 回應結束時打一筆 `info`：bytes、ms、約略 Mbps、是否分片快取命中。
+   * 設 `STREAM_METRICS_LOG=1`；須 `LOG_LEVEL` 含 `info`（預設即為 info）。
+   */
+  streamMetricsLog: (() => {
+    const t = (process.env.STREAM_METRICS_LOG ?? "").trim().toLowerCase();
+    return t === "1" || t === "true" || t === "on";
+  })(),
   streamSecret: process.env.STREAM_SECRET || "dev-insecure-change-me",
   pythonPath,
   downloadDir: path.resolve(

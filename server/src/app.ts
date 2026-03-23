@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { Readable } from "node:stream";
+import { finished } from "node:stream/promises";
+import { Readable, Transform } from "node:stream";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -87,6 +88,74 @@ function isValidContentSlug(s: string | undefined): s is string {
   return t.length > 0 && t.length < 512 && !t.includes("..") && !t.includes("/");
 }
 
+/** 回應送完後打一筆（預設關閉，見 `STREAM_METRICS_LOG`） */
+function attachStreamMetricsOnFinish(
+  reply: FastifyReply,
+  startedAt: number,
+  meta: { typ: "playlist" | "segment"; cacheHit?: boolean },
+  byteCount: number
+): void {
+  if (!config.streamMetricsLog) return;
+  reply.raw.once("finish", () => {
+    const ms = Math.max(1, Date.now() - startedAt);
+    const mbps = byteCount > 0 ? (byteCount * 8) / (ms / 1000) / 1_000_000 : 0;
+    app.log.info(
+      {
+        stream: "metrics",
+        typ: meta.typ,
+        bytes: byteCount,
+        ms,
+        mbps: Number(mbps.toFixed(2)),
+        cacheHit: Boolean(meta.cacheHit),
+      },
+      "stream"
+    );
+  });
+}
+
+function attachStreamMetricsAfterTransform(
+  pass: Transform,
+  startedAt: number,
+  getBytes: () => number
+): void {
+  if (!config.streamMetricsLog) return;
+  void finished(pass)
+    .then(() => {
+      const bytes = getBytes();
+      const ms = Math.max(1, Date.now() - startedAt);
+      const mbps = bytes > 0 ? (bytes * 8) / (ms / 1000) / 1_000_000 : 0;
+      app.log.info(
+        {
+          stream: "metrics",
+          typ: "segment" as const,
+          bytes,
+          ms,
+          mbps: Number(mbps.toFixed(2)),
+          cacheHit: false,
+        },
+        "stream"
+      );
+    })
+    .catch(() => {
+      const bytes = getBytes();
+      if (bytes === 0) return;
+      const ms = Math.max(1, Date.now() - startedAt);
+      const mbps = (bytes * 8) / (ms / 1000) / 1_000_000;
+      app.log.warn(
+        {
+          stream: "metrics",
+          typ: "segment" as const,
+          bytes,
+          ms,
+          mbps: Number(mbps.toFixed(2)),
+          cacheHit: false,
+          partial: true,
+        },
+        "stream"
+      );
+    });
+}
+
 const app = Fastify({
   logger: { level: config.logLevel },
   bodyLimit: 1024 * 64,
@@ -125,6 +194,7 @@ app.get("/api/health", async () => {
     pythonAvailable,
     downloadQueueConcurrency: config.downloadQueueConcurrency,
     upstreamConnectionsPerOrigin: config.upstreamConnectionsPerOrigin,
+    streamMetricsLogEnabled: config.streamMetricsLog,
     queue,
     pythonHtmlWorkerCount: config.pythonHtmlWorkerCount,
     ...getDownloadWorkerPoolStats(),
@@ -613,12 +683,15 @@ app.get(
       return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
     }
 
+    const streamStartedAt = Date.now();
+
     if (payload.typ === "segment") {
       const hit = segmentCache.get(payload.target);
       if (hit) {
         reply.header("Content-Type", "application/octet-stream");
         reply.header("Cache-Control", "public, max-age=60");
         reply.header("Content-Length", String(hit.length));
+        attachStreamMetricsOnFinish(reply, streamStartedAt, { typ: "segment", cacheHit: true }, hit.length);
         return reply.send(hit);
       }
     }
@@ -654,12 +727,26 @@ app.get(
           toCache as import("node:stream/web").ReadableStream,
           payload.target
         );
-        return reply.send(
-          Readable.fromWeb(toClient as Parameters<typeof Readable.fromWeb>[0], {
-            highWaterMark: 256 * 1024,
-          })
+        const fromWebOpts = { highWaterMark: 256 * 1024 } as const;
+        const webReadable = Readable.fromWeb(
+          toClient as Parameters<typeof Readable.fromWeb>[0],
+          fromWebOpts
         );
+        if (config.streamMetricsLog) {
+          let streamedBytes = 0;
+          const pass = new Transform({
+            transform(chunk, enc, cb) {
+              streamedBytes += chunk.length;
+              cb(null, chunk);
+            },
+          });
+          webReadable.pipe(pass);
+          attachStreamMetricsAfterTransform(pass, streamStartedAt, () => streamedBytes);
+          return reply.send(pass);
+        }
+        return reply.send(webReadable);
       }
+      attachStreamMetricsOnFinish(reply, streamStartedAt, { typ: "segment", cacheHit: false }, 0);
       return reply.send(Buffer.alloc(0));
     }
 
@@ -678,11 +765,18 @@ app.get(
       );
       reply.header("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
       reply.header("Cache-Control", "no-cache");
+      attachStreamMetricsOnFinish(
+        reply,
+        streamStartedAt,
+        { typ: "playlist", cacheHit: false },
+        Buffer.byteLength(rewritten, "utf8")
+      );
       return reply.send(rewritten);
     }
 
     reply.header("Content-Type", ct || "application/octet-stream");
     reply.header("Cache-Control", "public, max-age=60");
+    attachStreamMetricsOnFinish(reply, streamStartedAt, { typ: payload.typ, cacheHit: false }, buf.length);
     return reply.send(buf);
   }
 );
