@@ -340,17 +340,17 @@ const SUBCATEGORY_DEF: readonly BrowseSubcategoryMeta[] = [
     categoryKey: "madou",
     key: "k-live",
     label: "韓國直播",
-    description: "以 韓國直播 關鍵字聚合的片單。",
+    description: "以 KBJ- 片號規則聚合的韓國直播片單。",
     mode: "search",
-    searchQuery: "韓國直播",
+    searchQuery: "KBJ-",
   },
   {
     categoryKey: "madou",
     key: "c-live",
     label: "中國直播",
-    description: "以 中國直播 關鍵字聚合的片單。",
+    description: "以 CN- 片號規則聚合的中國直播片單。",
     mode: "search",
-    searchQuery: "中國直播",
+    searchQuery: "CN-",
   },
 ] as const;
 
