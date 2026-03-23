@@ -53,11 +53,6 @@ import {
   resolveThumbnailUrlFromPage,
   setCachedThumbImage,
 } from "./lib/thumbnail-cache.js";
-import {
-  getCachedSegment,
-  getStreamSegmentCacheStats,
-  setCachedSegment,
-} from "./lib/stream-segment-cache.js";
 import { getDownloadWorkerPoolStats } from "./lib/python-download-worker-pool.js";
 import { getCachedVideoPageParsed, setCachedVideoPageParsed } from "./lib/video-detail-cache.js";
 import { upstreamFetch } from "./lib/upstream-fetch.js";
@@ -127,7 +122,6 @@ app.get("/api/health", async () => {
     ...getDownloadWorkerPoolStats(),
     ...getThumbnailCacheStats(),
     ...getVideoPageFetchQueueStats(),
-    ...getStreamSegmentCacheStats(),
   };
 });
 
@@ -605,16 +599,6 @@ app.get("/api/stream", async (request, reply) => {
     return sendError(reply, 403, "BAD_TOKEN", "token 無效或已過期");
   }
 
-  if (payload.typ === "segment") {
-    const hit = getCachedSegment(payload.target);
-    if (hit) {
-      reply.header("Content-Type", hit.ct || "application/octet-stream");
-      reply.header("Cache-Control", "public, max-age=60");
-      reply.header("Content-Length", String(hit.buf.length));
-      return reply.send(hit.buf);
-    }
-  }
-
   let res: Awaited<ReturnType<typeof upstreamFetch>>;
   try {
     res = await upstreamFetch(payload.target, {
@@ -635,21 +619,11 @@ app.get("/api/stream", async (request, reply) => {
   if (payload.typ === "segment") {
     reply.header("Content-Type", ct || "application/octet-stream");
     reply.header("Cache-Control", "public, max-age=60");
-    const cl = res.headers.get("content-length");
-    const clNum = cl ? Number.parseInt(cl, 10) : NaN;
-    const canBufferCache =
-      config.streamSegmentCacheEnabled &&
-      Number.isFinite(clNum) &&
-      clNum > 0 &&
-      clNum <= config.streamSegmentCacheMaxBytesPerSegment;
-
-    if (canBufferCache && res.body) {
-      const buf = Buffer.from(await res.arrayBuffer());
-      setCachedSegment(payload.target, buf, ct || "application/octet-stream");
-      reply.header("Content-Length", String(buf.length));
-      return reply.send(buf);
-    }
-
+    /**
+     * 未命中快取時一律串流轉發，避免「整顆分片從上游收完才吐給瀏覽器」拉長每段 TTFB、造成卡頓。
+     * （先前在有小 Content-Length 時會先 buffer 再入庫＋回應，首看者體感很差。）
+     * 快取僅在命中路徑使用；若要再擴充「邊播邊寫快取」需 tee stream，另議。
+     */
     const len = res.headers.get("content-length");
     if (len) reply.header("Content-Length", len);
     if (res.body) {

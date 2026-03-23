@@ -138,28 +138,6 @@ export const config = {
     64,
     Number.parseInt(process.env.VIDEO_PAGE_PARSE_CACHE_MAX_ENTRIES || "1024", 10) || 1024
   ),
-  /**
-   * HLS 分片（.ts 等）以「上游絕對 URL」為鍵的記憶體快取；多人看同一 CDN 分片時可省上游頻寬與延遲。
-   * 設 `STREAM_SEGMENT_CACHE=0` 或 `false` 關閉。
-   */
-  streamSegmentCacheEnabled: (() => {
-    const t = (process.env.STREAM_SEGMENT_CACHE ?? "").trim().toLowerCase();
-    if (t === "0" || t === "false" || t === "no" || t === "off") return false;
-    return true;
-  })(),
-  streamSegmentCacheTtlMs: Math.max(
-    30_000,
-    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_TTL_MS || `${5 * 60_000}`, 10) || 5 * 60_000
-  ),
-  streamSegmentCacheMaxEntries: Math.max(
-    32,
-    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_ENTRIES || "256", 10) || 256
-  ),
-  streamSegmentCacheMaxBytesPerSegment: Math.max(
-    256 * 1024,
-    Number.parseInt(process.env.STREAM_SEGMENT_CACHE_MAX_BYTES_PER_SEGMENT || `${4 * 1024 * 1024}`, 10) ||
-      4 * 1024 * 1024
-  ),
   /** Recombee（首頁推薦／搜尋）HTTP 逾時毫秒 */
   recombeeTimeoutMs: Math.min(
     60_000,
