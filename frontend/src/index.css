@@ -811,6 +811,36 @@ code.inline-code {
   display: block;
 }
 
+.card-thumb-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  outline-offset: 2px;
+}
+
+.card-slug-link,
+.card-title-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  outline-offset: 2px;
+}
+
+.card-chip-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card-chip-link:hover {
+    border-color: var(--accent-soft);
+    background: rgba(232, 197, 71, 0.1);
+    color: var(--accent);
+  }
+}
+
 .card-slot-wrap {
   position: relative;
   min-width: 0;
@@ -1634,6 +1664,18 @@ code.inline-code {
   background: rgba(232, 197, 71, 0.08);
 }
 
+.tag-missav-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.tag-missav-link:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
 .detail-meta-board {
   background: rgba(12, 14, 22, 0.55);
   border: 1px solid var(--stroke);
@@ -1876,7 +1918,7 @@ code.inline-code {
 }
 
 @media (hover: none) {
-  .card.card-link:active {
+  .card:active {
     border-color: var(--accent-soft);
   }
 }

@@ -596,9 +596,14 @@ export default function VideoPage() {
                   <h2 className="detail-section-label">類型</h2>
                   <div className="tag-row tag-row-missav">
                     {data.genres.map((g) => (
-                      <span key={g} className="tag tag-missav">
+                      <Link
+                        key={g}
+                        to={`/search?q=${encodeURIComponent(g)}`}
+                        className="tag tag-missav tag-missav-link"
+                        title={`搜尋：${g}`}
+                      >
                         {g}
-                      </span>
+                      </Link>
                     ))}
                   </div>
                 </div>

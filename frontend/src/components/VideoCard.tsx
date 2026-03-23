@@ -107,52 +107,65 @@ export default function VideoCard({
     setThumbOk(true);
   }, [locale, item.id]);
 
+  const videoTo = `/v/${encodeURIComponent(item.id)}`;
+
   return (
     <div className="card-slot-wrap">
-      <Link to={`/v/${encodeURIComponent(item.id)}`} className="card card-link">
-        <div className="card-thumb">
-          {thumbOk ? (
-            <img
-              key={thumbSrc}
-              src={thumbSrc}
-              alt=""
-              loading={thumbLoading}
-              decoding="async"
-              className="card-thumb-img"
-              onError={() => setThumbOk(false)}
-            />
-          ) : null}
-          <div className="card-thumb-shade" aria-hidden />
-          <div className="card-thumb-badges" aria-hidden>
-            {uncensoredBadge ? (
-              <span className="card-meta-badge card-meta-badge-uncensored">{uncensoredBadge}</span>
+      <div className="card">
+        <Link to={videoTo} className="card-thumb-link">
+          <div className="card-thumb">
+            {thumbOk ? (
+              <img
+                key={thumbSrc}
+                src={thumbSrc}
+                alt=""
+                loading={thumbLoading}
+                decoding="async"
+                className="card-thumb-img"
+                onError={() => setThumbOk(false)}
+              />
             ) : null}
-            <div className="card-thumb-badges-trail">
-              {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
-              {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
+            <div className="card-thumb-shade" aria-hidden />
+            <div className="card-thumb-badges" aria-hidden>
+              {uncensoredBadge ? (
+                <span className="card-meta-badge card-meta-badge-uncensored">{uncensoredBadge}</span>
+              ) : null}
+              <div className="card-thumb-badges-trail">
+                {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
+                {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
+              </div>
             </div>
+            <span className="card-play" aria-hidden>
+              <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="22" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.35)" />
+                <path d="M20 16L34 24L20 32V16Z" fill="white" />
+              </svg>
+            </span>
           </div>
-          <span className="card-play" aria-hidden>
-            <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="22" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.35)" />
-              <path d="M20 16L34 24L20 32V16Z" fill="white" />
-            </svg>
-          </span>
-        </div>
+        </Link>
         <div className="card-body">
-          <div className="slug">{item.id}</div>
+          <Link to={videoTo} className="card-slug-link">
+            <div className="slug">{item.id}</div>
+          </Link>
           {chips.length > 0 ? (
             <div className="card-chip-row">
               {chips.map((c, i) => (
-                <span key={`${i}-${c}`} className="card-chip">
+                <Link
+                  key={`${i}-${c}`}
+                  to={`/search?q=${encodeURIComponent(c)}`}
+                  className="card-chip card-chip-link"
+                  title={`搜尋：${c}`}
+                >
                   {c}
-                </span>
+                </Link>
               ))}
             </div>
           ) : null}
-          <p className="title">{title}</p>
+          <Link to={videoTo} className="card-title-link">
+            <p className="title">{title}</p>
+          </Link>
         </div>
-      </Link>
+      </div>
       {showFavoriteHeart ? (
         <FavoriteHeart
           className="card-favorite-heart"
