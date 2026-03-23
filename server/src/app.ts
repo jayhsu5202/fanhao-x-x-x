@@ -263,7 +263,7 @@ app.get("/api/recommendations", async (request, reply) => {
 /** 只抓影片頁並解析 og:image；Recombee 搜尋結果沒有縮圖欄位。 */
 app.get("/api/preview/:slug", async (request, reply) => {
   const slug = (request.params as { slug: string }).slug?.trim();
-  if (!slug || slug.includes("..") || slug.includes("/")) {
+  if (!slug || slug.includes("..")) {
     return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
   }
   const base = resolveMissavBaseFromRequest(request);
@@ -283,7 +283,7 @@ app.get("/api/preview/:slug", async (request, reply) => {
 
 app.get("/api/videos/:slug", async (request, reply) => {
   const slug = (request.params as { slug: string }).slug?.trim();
-  if (!slug || slug.includes("..") || slug.includes("/")) {
+  if (!slug || slug.includes("..")) {
     return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
   }
   const base = resolveMissavBaseFromRequest(request);
@@ -327,7 +327,7 @@ app.get("/api/videos/:slug", async (request, reply) => {
 /** 同源代理封面，避免 CDN 擋 hotlink、卡片 img 空白。 */
 app.get("/api/thumbnail/:slug", async (request, reply) => {
   const slug = (request.params as { slug: string }).slug?.trim();
-  if (!slug || slug.includes("..") || slug.includes("/")) {
+  if (!slug || slug.includes("..")) {
     return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
   }
   const base = resolveMissavBaseFromRequest(request);
@@ -440,7 +440,7 @@ app.post("/api/downloads", async (request, reply) => {
 /** 依番號查伺服器是否已有可下載的完成檔或進行中工作（不需記住 jobId） */
 app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
   const slug = (request.params as { slug: string }).slug?.trim();
-  if (!slug || slug.includes("..") || slug.includes("/")) {
+  if (!slug || slug.includes("..")) {
     return sendError(reply, 400, "BAD_SLUG", "無效的 slug");
   }
   const q = request.query as { quality?: string };
