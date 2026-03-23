@@ -53,6 +53,7 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
       "依目錄 `genres`／`tags` 含「素人」篩選後，在該子集內做趨勢推薦（比單打「素人」全文搜尋覆蓋更完整）。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_AMATEUR,
+    searchQuery: "素人",
   },
   uncensored: {
     key: "uncensored",
@@ -61,6 +62,7 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
       "依 `is_uncensored_leak` 或 `type==uncensored-leak` 篩選後趨勢推薦（對齊目錄欄位，不限於標題是否出現「無碼」）。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_UNCENSORED,
+    searchQuery: "無碼流出",
   },
   madou: {
     key: "madou",
@@ -69,6 +71,7 @@ const DEF: Record<BrowseCategoryKey, BrowseCategoryMeta> = {
       "依標題欄位（zh／預設 title 等）含「麻豆」篩選後趨勢推薦；較贴近亞洲代理／麻豆主題區塊。",
     mode: "filtered",
     catalogFilter: RECOMBEE_FILTER_MADOU,
+    searchQuery: "麻豆傳媒",
   },
 };
 
