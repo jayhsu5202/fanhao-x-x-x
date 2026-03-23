@@ -14,8 +14,10 @@ type FeaturedRes = {
 
 const PAGE_SIZE = 32;
 const MIN_FETCH_GAP_MS = 280;
-/** 連續「這批去重後 0 筆」時自動再請求次數；由捲動觸發時會歸零 */
-const MAX_AUTO_RETRY_ZERO_ADD = 12;
+/** 僅 tail 自動銜接：連續去重後 0 筆新卡片上限；使用者捲動讓 sentinel 再次進入視窗會歸零（見 loadMore source） */
+const MAX_TAIL_ZERO_ADD_STREAK = 48;
+/** 與下方 isSentinelInLoadZone 一致，預載距離 */
+const LOAD_ZONE_PX = 900;
 
 function docContentShort(extra = 280): boolean {
   const vh = window.innerHeight;
@@ -33,6 +35,12 @@ function appendUniqueById(prev: RecommItem[], batch: RecommItem[]): { next: Reco
   }
   if (add.length === 0) return { next: prev, added: 0 };
   return { next: [...prev, ...add], added: add.length };
+}
+
+function isSentinelInLoadZone(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  const vh = window.innerHeight;
+  return r.top < vh + LOAD_ZONE_PX && r.bottom > -LOAD_ZONE_PX;
 }
 
 function featuredUrl(limit: number, opts: { recommId?: string | null } = {}): string {
@@ -64,7 +72,9 @@ export default function HomePage() {
   const feedGenRef = useRef(0);
   const itemsRef = useRef<RecommItem[]>([]);
   const zeroAddStreakRef = useRef(0);
-  const loadMoreRef = useRef<(o?: { userTriggered?: boolean }) => Promise<void>>(async () => {});
+  const initialLoadingRef = useRef(true);
+  initialLoadingRef.current = initialLoading;
+  const loadMoreRef = useRef<(o?: { source?: "intersect" | "shortPage" | "tail" }) => Promise<void>>(async () => {});
 
   itemsRef.current = items;
   recommIdRef.current = recommId;
@@ -113,14 +123,17 @@ export default function HomePage() {
   }, [locale]);
 
   const loadMore = useCallback(
-    async (opts?: { userTriggered?: boolean }) => {
+    async (opts?: { source?: "intersect" | "shortPage" | "tail" }) => {
       if (loadMoreLock.current || initialLoading) return;
       if (Date.now() - lastFetchEndRef.current < MIN_FETCH_GAP_MS) return;
-      if (opts?.userTriggered) zeroAddStreakRef.current = 0;
+      if (opts?.source === "intersect" || opts?.source === "shortPage") {
+        zeroAddStreakRef.current = 0;
+      }
 
       const gen = feedGenRef.current;
       loadMoreLock.current = true;
       setLoadingMore(true);
+      let fetchOk = false;
       try {
         const useNext = canNextRef.current && recommIdRef.current;
         const url = useNext
@@ -130,6 +143,7 @@ export default function HomePage() {
         const d = await apiGet<FeaturedRes>(url);
         if (gen !== feedGenRef.current) return;
 
+        fetchOk = true;
         setFeatErr(null);
         const batch = d.recomms ?? [];
         const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
@@ -148,14 +162,8 @@ export default function HomePage() {
           setCanRecommendNext(Boolean(rid));
         }
 
-        if (newUniqueCount > 0) {
-          zeroAddStreakRef.current = 0;
-        } else if (zeroAddStreakRef.current < MAX_AUTO_RETRY_ZERO_ADD) {
-          zeroAddStreakRef.current += 1;
-          window.setTimeout(() => {
-            void loadMoreRef.current();
-          }, MIN_FETCH_GAP_MS);
-        }
+        if (newUniqueCount === 0) zeroAddStreakRef.current += 1;
+        else zeroAddStreakRef.current = 0;
       } catch (e) {
         if (gen === feedGenRef.current && itemsRef.current.length > 0) {
           setFeatErr(e instanceof Error ? e.message : "載入更多失敗");
@@ -164,6 +172,20 @@ export default function HomePage() {
         if (gen === feedGenRef.current) lastFetchEndRef.current = Date.now();
         loadMoreLock.current = false;
         setLoadingMore(false);
+        /**
+         * IO 只在「交集狀態改變」時觸發；若 sentinel 一直留在視窗內（例如整批去重後高度不變），
+         * 必須在請求結束後主動檢查是否仍應繼續載入——這才是常見無限捲動做法。
+         */
+        if (fetchOk && gen === feedGenRef.current) {
+          window.setTimeout(() => {
+            if (feedGenRef.current !== gen || loadMoreLock.current || initialLoadingRef.current) return;
+            if (zeroAddStreakRef.current > MAX_TAIL_ZERO_ADD_STREAK) return;
+            const el = sentinelRef.current;
+            if (el && isSentinelInLoadZone(el)) {
+              void loadMoreRef.current({ source: "tail" });
+            }
+          }, MIN_FETCH_GAP_MS);
+        }
       }
     },
     [initialLoading]
@@ -179,9 +201,9 @@ export default function HomePage() {
 
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) void loadMore({ userTriggered: true });
+        if (entries[0]?.isIntersecting) void loadMore({ source: "intersect" });
       },
-      { root: null, rootMargin: "480px", threshold: 0 }
+      { root: null, rootMargin: `${LOAD_ZONE_PX}px 0px`, threshold: 0 }
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -190,7 +212,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!ready || loadingMore) return;
     if (!docContentShort(240)) return;
-    void loadMore({ userTriggered: true });
+    void loadMore({ source: "shortPage" });
   }, [ready, loadingMore, items.length, loadMore]);
 
   function onSubmit(e: FormEvent) {
