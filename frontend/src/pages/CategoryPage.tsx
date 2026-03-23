@@ -61,18 +61,16 @@ export default function CategoryPage() {
   }, []);
 
   const getInitialUrl = useCallback(() => {
-    const path = subcategory
-      ? `/api/browse/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`
-      : `/api/browse/${encodeURIComponent(category)}`;
-    return `${path}?limit=${CATEGORY_LIMIT}`;
+    const path = `/api/browse/${encodeURIComponent(category)}`;
+    const subPart = subcategory ? `&sub=${encodeURIComponent(subcategory)}` : "";
+    return `${path}?limit=${CATEGORY_LIMIT}${subPart}`;
   }, [category, subcategory]);
 
   const getMoreUrl = useCallback(
     ({ useNext, recommId }: { useNext: boolean; recommId: string | null }) => {
-      const path = subcategory
-        ? `/api/browse/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`
-        : `/api/browse/${encodeURIComponent(category)}`;
-      const base = `${path}?limit=${CATEGORY_LIMIT}`;
+      const path = `/api/browse/${encodeURIComponent(category)}`;
+      const subPart = subcategory ? `&sub=${encodeURIComponent(subcategory)}` : "";
+      const base = `${path}?limit=${CATEGORY_LIMIT}${subPart}`;
       if (useNext && recommId) {
         return `${base}&recommId=${encodeURIComponent(recommId)}`;
       }

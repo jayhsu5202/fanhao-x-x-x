@@ -410,6 +410,7 @@ type BrowseQuery = {
   cursor?: string;
   fresh?: string;
   sort?: string;
+  sub?: string;
 };
 
 type BrowseTargetMeta = {
@@ -560,11 +561,46 @@ async function runBrowseTarget(reply: FastifyReply, meta: BrowseTargetMeta, q: B
  */
 app.get("/api/browse/:category", async (request, reply) => {
   const raw = (request.params as { category: string }).category?.trim() ?? "";
+  const q = request.query as BrowseQuery;
+  const sub = (typeof q.sub === "string" ? q.sub : "").trim();
+  if (sub) {
+    const subMeta = getBrowseSubcategoryMeta(raw, sub);
+    if (!subMeta) {
+      return sendError(reply, 404, "NOT_FOUND", "未知的子分類", {
+        category: raw,
+        subcategory: sub,
+      });
+    }
+    const res = await runBrowseTarget(
+      reply,
+      {
+        categoryKey: subMeta.categoryKey,
+        subcategoryKey: subMeta.key,
+        label: subMeta.label,
+        description: subMeta.description,
+        sourceMode: subMeta.mode,
+        searchQuery: subMeta.searchQuery,
+        catalogFilter: subMeta.catalogFilter,
+      },
+      q
+    );
+    if (!res || typeof res !== "object" || Array.isArray(res) || "error" in res) {
+      return res;
+    }
+    return {
+      ...res,
+      subcategoryLabel: subMeta.label,
+      siblingSubcategories: listBrowseSubcategories(subMeta.categoryKey).map((item) => ({
+        key: item.key,
+        label: item.label,
+        description: item.description,
+      })),
+    };
+  }
   const meta = getBrowseCategoryMeta(raw);
   if (!meta) {
     return sendError(reply, 404, "NOT_FOUND", "未知的分類", { category: raw });
   }
-  const q = request.query as BrowseQuery;
   const res = await runBrowseTarget(reply, {
     categoryKey: meta.key,
     label: meta.label,
