@@ -221,6 +221,20 @@ export default function VideoPage() {
       hls.on(Hls.Events.LEVELS_UPDATED, () => {
         applyBitrateAwareBufferTargets(hls);
       });
+      /** 暫停／卡頓時仍推進載入，接近大型站「暫停也往後緩」的行為 */
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        const media = hls.media;
+        if (!media) return;
+        const nudgeLoad = () => {
+          hls.startLoad();
+        };
+        media.addEventListener("pause", nudgeLoad);
+        media.addEventListener("waiting", nudgeLoad);
+        hls.on(Hls.Events.DESTROYING, () => {
+          media.removeEventListener("pause", nudgeLoad);
+          media.removeEventListener("waiting", nudgeLoad);
+        });
+      });
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
           hls.startLoad();
