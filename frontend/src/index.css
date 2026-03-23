@@ -15,6 +15,8 @@
   /** 內容區水平內距（與 safe-area 併用） */
   --page-gutter: clamp(0.75rem, 3.5vw, 2.5rem);
   --touch-target: 44px;
+  /** 首頁／搜尋頁搜尋框同寬（與 main-pad 1320 內一致） */
+  --search-form-max: min(720px, 100%);
 }
 
 *,
@@ -411,10 +413,22 @@ code.inline-code {
   font-weight: 600;
 }
 
-/* 首頁 hero（對齊 missav dm265 語感） */
+/* 首頁 hero（對齊 missav dm265 語感）
+   勿對整欄 align-items:center，否則子項依內容寬度收縮，搜尋列會變窄條 */
 .home-missav .app-header-hero {
   text-align: center;
-  align-items: center;
+  align-items: stretch;
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.home-missav .app-header-hero > .home-kicker,
+.home-missav .app-header-hero > .home-hero-title,
+.home-missav .app-header-hero > .header-top,
+.home-missav .app-header-hero > .hero-sub {
+  align-self: center;
+  max-width: 100%;
 }
 
 .home-kicker {
@@ -685,21 +699,22 @@ code.inline-code {
 }
 
 .search-bar {
-  flex: 1;
-  min-width: 200px;
-  max-width: 560px;
   display: flex;
   gap: 0.6rem;
-}
-
-.search-bar-hero {
-  max-width: min(640px, 100%);
+  width: 100%;
+  max-width: var(--search-form-max);
+  min-width: 0;
   margin-left: auto;
   margin-right: auto;
 }
 
+.search-bar-hero {
+  max-width: var(--search-form-max);
+}
+
 .search-bar input {
   flex: 1;
+  min-width: 0;
   padding: 0.75rem 1.1rem;
   border-radius: 12px;
   border: 1px solid var(--stroke);
@@ -1217,6 +1232,10 @@ code.inline-code {
   padding: 1rem var(--page-gutter) 1.35rem;
   border-bottom: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(232, 197, 71, 0.05), transparent);
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
 
 @media (min-width: 768px) {
@@ -1229,6 +1248,11 @@ code.inline-code {
   font-size: 0.82rem;
   color: var(--muted);
   margin-bottom: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
 }
 
 .search-results-crumb a:hover {
@@ -1248,7 +1272,8 @@ code.inline-code {
 }
 
 .search-results-meta {
-  margin: 0 0 1rem;
+  margin: 0 auto 1rem;
+  max-width: 42rem;
   font-size: clamp(0.88rem, 1.8vw, 0.95rem);
   color: var(--text);
   line-height: 1.5;
@@ -1270,13 +1295,16 @@ code.inline-code {
 }
 
 .search-results-form {
-  max-width: min(640px, 100%);
-  margin: 0;
+  max-width: var(--search-form-max);
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .search-results-form-err {
-  margin: 0 0 0.65rem;
-  max-width: min(640px, 100%);
+  margin: 0 auto 0.65rem;
+  max-width: var(--search-form-max);
+  text-align: center;
 }
 
 .search-results-main {

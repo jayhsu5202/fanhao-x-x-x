@@ -5,7 +5,8 @@ import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import { useInfiniteRecombeeFeed } from "../hooks/useInfiniteRecombeeFeed";
 
-const SEARCH_PAGE_LIMIT = 40;
+/** 後端 /api/search 單次上限 50 */
+const SEARCH_PAGE_LIMIT = 50;
 
 export default function SearchResultsPage() {
   const { locale } = useMissavLocale();

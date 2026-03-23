@@ -16,7 +16,8 @@ type BrowseMetaRes = {
 
 type BrowseFirstPayload = BrowseMetaRes & RecombeeFeedResponse;
 
-const CATEGORY_LIMIT = 28;
+/** 後端 /api/browse 單次上限 50 */
+const CATEGORY_LIMIT = 50;
 
 export default function CategoryPage() {
   const { locale } = useMissavLocale();
