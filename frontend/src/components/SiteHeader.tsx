@@ -11,12 +11,19 @@ function navLinkClass(isActive: boolean): string {
 
 export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
   const [open, setOpen] = useState(false);
+  /** 手機選單內分類區塊展開（對齊 missav：點主項切換子選單，非整頁跳轉） */
+  const [mobileOpenKey, setMobileOpenKey] = useState<string | null>(null);
   const location = useLocation();
   const menuId = useId();
 
   useEffect(() => {
     setOpen(false);
+    setMobileOpenKey(null);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!open) setMobileOpenKey(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +46,9 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
         <nav className="site-nav-desktop" aria-label="影片分類">
           <NavLink end className={({ isActive }) => navLinkClass(isActive)} to="/">
             首頁
+          </NavLink>
+          <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/favorites">
+            最愛
           </NavLink>
           {NAV_MENU.map((m) => (
             <div key={m.key} className="nav-mega-wrap">
@@ -91,26 +101,50 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
             >
               首頁／搜尋
             </NavLink>
-            {NAV_MENU.map((m) => (
-              <details key={m.key} className="site-nav-accordion">
-                <summary className="site-nav-accordion-summary">{m.label}</summary>
-                <div className="site-nav-accordion-body">
-                  <Link className="site-nav-panel-sublink site-nav-panel-sublink-strong" to={m.to} onClick={() => setOpen(false)}>
-                    進入{m.label}
-                  </Link>
-                  {m.children.map((ch) => (
-                    <Link
-                      key={`${m.key}-${ch.label}`}
-                      className="site-nav-panel-sublink"
-                      to={ch.to}
-                      onClick={() => setOpen(false)}
-                    >
-                      {ch.label}
-                    </Link>
-                  ))}
+            <NavLink
+              className={({ isActive }) => `site-nav-panel-link${isActive ? " is-active" : ""}`}
+              to="/favorites"
+              onClick={() => setOpen(false)}
+            >
+              我的最愛
+            </NavLink>
+            {NAV_MENU.map((m) => {
+              const expanded = mobileOpenKey === m.key;
+              return (
+                <div key={m.key} className={`site-nav-mobile-group${expanded ? " is-open" : ""}`}>
+                  <button
+                    type="button"
+                    className="site-nav-mobile-group-head"
+                    aria-expanded={expanded}
+                    onClick={() => setMobileOpenKey((k) => (k === m.key ? null : m.key))}
+                  >
+                    <span>{m.label}</span>
+                    <span className="site-nav-mobile-chevron" aria-hidden />
+                  </button>
+                  {expanded ? (
+                    <div className="site-nav-mobile-group-body">
+                      <Link
+                        className="site-nav-panel-sublink site-nav-panel-sublink-strong"
+                        to={m.to}
+                        onClick={() => setOpen(false)}
+                      >
+                        瀏覽「{m.label}」全部
+                      </Link>
+                      {m.children.map((ch) => (
+                        <Link
+                          key={`${m.key}-${ch.label}`}
+                          className="site-nav-panel-sublink"
+                          to={ch.to}
+                          onClick={() => setOpen(false)}
+                        >
+                          {ch.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              </details>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}

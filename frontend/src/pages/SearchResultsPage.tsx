@@ -127,23 +127,11 @@ export default function SearchResultsPage() {
               {items.map((it) => (
                 <VideoCard key={`${it.id}-${locale}`} item={it} showFavoriteHeart />
               ))}
-              <div ref={sentinelRef} className="infinite-sentinel" aria-hidden />
+              <div ref={sentinelRef} className="infinite-sentinel infinite-sentinel-footer" aria-hidden>
+                {loadingMore ? <span className="infinite-loading-line">載入更多…</span> : null}
+              </div>
             </div>
           </>
-        ) : null}
-
-        {hasQuery && loadingMore && !initialLoading ? (
-          <div className="grid-cards search-results-grid search-results-grid--more-skel" aria-hidden>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={`more-${i}`} className="card">
-                <div className="card-thumb skeleton" style={{ minHeight: 120 }} />
-                <div className="card-body">
-                  <div className="skeleton" style={{ height: 10, width: "40%" }} />
-                  <div className="skeleton" style={{ height: 14, marginTop: 8, width: "100%" }} />
-                </div>
-              </div>
-            ))}
-          </div>
         ) : null}
 
         <p className="footer-note">

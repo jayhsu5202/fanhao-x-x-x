@@ -140,20 +140,9 @@ export default function CategoryPage() {
             {items.map((it) => (
               <VideoCard key={`${it.id}-${locale}`} item={it} showFavoriteHeart />
             ))}
-            <div ref={sentinelRef} className="infinite-sentinel" aria-hidden />
-          </div>
-        ) : null}
-
-        {loadingMore && !initialLoading ? (
-          <div className="grid-cards category-more-skel" aria-hidden style={{ marginTop: 12 }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={`cm-${i}`} className="card">
-                <div className="card-thumb skeleton" style={{ minHeight: 120 }} />
-                <div className="card-body">
-                  <div className="skeleton" style={{ height: 10, width: "40%" }} />
-                </div>
-              </div>
-            ))}
+            <div ref={sentinelRef} className="infinite-sentinel infinite-sentinel-footer" aria-hidden>
+              {loadingMore ? <span className="infinite-loading-line">載入更多…</span> : null}
+            </div>
           </div>
         ) : null}
 

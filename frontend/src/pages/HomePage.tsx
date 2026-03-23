@@ -95,25 +95,15 @@ export default function HomePage() {
                   <VideoCard item={it} thumbLoading="lazy" showFavoriteHeart />
                 </div>
               ))}
-              <div
-                ref={sentinelRef}
-                className="featured-infinite-sentinel"
-                aria-hidden
-              />
+              <div ref={sentinelRef} className="featured-infinite-sentinel infinite-sentinel-footer" aria-hidden>
+                {loadingMore ? <span className="infinite-loading-line">載入更多…</span> : null}
+              </div>
             </div>
           ) : null}
           {!initialLoading && items.length === 0 && !featErr ? (
             <p className="msg-muted" style={{ padding: "1rem 0" }}>
               暫無推薦項目。
             </p>
-          ) : null}
-
-          {loadingMore ? (
-            <div className="featured-matrix featured-matrix--home" style={{ marginTop: 12 }} aria-hidden>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={`more-skel-${i}`} className="featured-card-skel skeleton" />
-              ))}
-            </div>
           ) : null}
         </section>
 

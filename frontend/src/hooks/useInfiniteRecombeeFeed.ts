@@ -225,7 +225,8 @@ export function useInfiniteRecombeeFeed(options: {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [ready, loadMore, items.length]);
+    /** 勿依賴 items.length：每載入一頁就 disconnect 會重掛 IO，易造成重複觸發與版面抖動 */
+  }, [ready, loadMore]);
 
   useEffect(() => {
     if (!ready || loadingMore) return;
