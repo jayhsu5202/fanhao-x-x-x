@@ -104,20 +104,18 @@ export default function VideoCard({
           <Link to={videoTo} state={{ detailPeek: item }} className="card-slug-link">
             <div className="slug">{item.id}</div>
           </Link>
-          {chips.length > 0 ? (
-            <div className="card-chip-row">
-              {chips.map((c, i) => (
-                <Link
-                  key={`${i}-${c}`}
-                  to={`/search?q=${encodeURIComponent(c)}`}
-                  className="card-chip card-chip-link"
-                  title={`搜尋：${c}`}
-                >
-                  {c}
-                </Link>
-              ))}
-            </div>
-          ) : null}
+          <div className={`card-chip-row${chips.length === 0 ? " card-chip-row--empty" : ""}`} aria-hidden={chips.length === 0}>
+            {chips.map((c, i) => (
+              <Link
+                key={`${i}-${c}`}
+                to={`/search?q=${encodeURIComponent(c)}`}
+                className="card-chip card-chip-link"
+                title={`搜尋：${c}`}
+              >
+                {c}
+              </Link>
+            ))}
+          </div>
           <Link to={videoTo} state={{ detailPeek: item }} className="card-title-link">
             <p className="title">{title}</p>
           </Link>

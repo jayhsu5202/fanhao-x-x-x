@@ -811,6 +811,9 @@ code.inline-code {
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
   overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
   backdrop-filter: blur(14px);
   transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
@@ -852,6 +855,7 @@ code.inline-code {
 .card-slot-wrap {
   position: relative;
   min-width: 0;
+  height: 100%;
 }
 
 .favorite-heart {
@@ -1013,7 +1017,13 @@ code.inline-code {
   display: flex;
   flex-wrap: wrap;
   gap: 0.28rem;
-  margin: 0.35rem 0 0;
+  margin: 0;
+  min-height: 1.85rem;
+  align-content: flex-start;
+}
+
+.card-chip-row--empty {
+  visibility: hidden;
 }
 
 .card-chip {
@@ -1043,6 +1053,10 @@ code.inline-code {
 
 .card-body {
   padding: 0.8rem 1rem 1.05rem;
+  display: grid;
+  grid-template-rows: minmax(1.1rem, auto) 1.85rem minmax(2.8rem, 2.8rem);
+  gap: 0.38rem;
+  align-content: start;
 }
 
 .card-body .slug {
@@ -1050,11 +1064,12 @@ code.inline-code {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--muted);
+  min-height: 1.1rem;
 }
 
 .card-body .title {
   font-size: clamp(0.95rem, 0.35vw + 0.86rem, 1.05rem);
-  margin: 0.3rem 0 0;
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2039,6 +2054,7 @@ code.inline-code {
 
   .card-body {
     padding: 0.65rem 0.72rem 0.85rem;
+    grid-template-rows: minmax(1rem, auto) 1.75rem minmax(2.65rem, 2.65rem);
   }
 }
 
