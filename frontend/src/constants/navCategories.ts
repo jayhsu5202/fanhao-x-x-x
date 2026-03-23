@@ -1,5 +1,5 @@
 /**
- * 頂層分類 + 子選單：一律本站 SPA（`/c/*`、`/search?q=`），不開外部 MissAV 分頁。
+ * 頂層分類 + 子選單：一律本站 SPA（`/c/*`、`/search?q=`），不開外部分頁。
  */
 export type NavCategoryKey = "jav" | "amateur" | "uncensored" | "madou";
 

@@ -529,7 +529,7 @@ export default function VideoPage() {
 
   if (loading && !peek) {
     return (
-      <div className="page-shell detail-missav">
+      <div className="page-shell detail-fanhao">
         <SiteHeader tone="detail" />
         <main className="detail-container">
           <Link className="back-link" to="/">
@@ -537,7 +537,7 @@ export default function VideoPage() {
           </Link>
           <div className="detail-yt-grid detail-skeleton-grid">
             <div className="detail-yt-main">
-              <div className="player-wrap player-missav skeleton" style={{ minHeight: "min(56vw, 480px)" }} />
+              <div className="player-wrap player-fanhao skeleton" style={{ minHeight: "min(56vw, 480px)" }} />
             </div>
             <div className="detail-yt-sidebar detail-aside-card skeleton" style={{ minHeight: 200 }} />
           </div>
@@ -548,7 +548,7 @@ export default function VideoPage() {
 
   if (!loading && (err || !data)) {
     return (
-      <div className="page-shell detail-missav">
+      <div className="page-shell detail-fanhao">
         <SiteHeader tone="detail" />
         <main className="detail-container">
           <Link className="back-link" to="/">
@@ -556,7 +556,7 @@ export default function VideoPage() {
           </Link>
           <div className="msg-error">{err || "無法載入"}</div>
           <p className="detail-footnote">
-            請確認後端已啟動、Python 可 import missav_api，並已執行 <code className="inline-code">uv sync</code>。
+            請確認後端已啟動、Python 可載入抓取模組，並已執行 <code className="inline-code">uv sync</code>。
           </p>
         </main>
       </div>
@@ -570,7 +570,7 @@ export default function VideoPage() {
   const displayVideoCode = data?.video_code ?? slug;
 
   return (
-    <div className="page-shell detail-missav">
+    <div className="page-shell detail-fanhao">
       <div className="detail-backdrop" style={{ backgroundImage: `url(${posterUrl})` }} aria-hidden />
 
       <SiteHeader tone="detail" />
@@ -585,7 +585,7 @@ export default function VideoPage() {
         <div className="detail-yt-grid">
           <div className="detail-yt-main">
             <div className="detail-player-stage">
-              <div className="player-wrap player-missav player-elevated player-wrap--clickplay">
+              <div className="player-wrap player-fanhao player-elevated player-wrap--clickplay">
                 <video ref={videoRef} controls playsInline poster={posterUrl} preload="none" />
                 {streamReady && !playbackStarted ? (
                   <button
@@ -646,19 +646,19 @@ export default function VideoPage() {
             <p className="detail-player-note">
               {streamReady
                 ? "按下「播放」後才會向本站載入串流（不會進頁就自動拉片）。播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。"
-                : "後端正在向 MissAV 取得影片頁並解析播放清單，完成後即可按「播放」載入串流（進頁不會自動拉片）。"}
+                : "後端正在向來源站取得影片頁並解析播放清單，完成後即可按「播放」載入串流（進頁不會自動拉片）。"}
             </p>
 
             <div className="detail-primary-below">
               {displayGenres.length > 0 ? (
                 <div className="detail-tags-block">
                   <h2 className="detail-section-label">類型</h2>
-                  <div className="tag-row tag-row-missav">
+                  <div className="tag-row tag-row-fanhao">
                     {displayGenres.map((g) => (
                       <Link
                         key={g}
                         to={`/search?q=${encodeURIComponent(g)}`}
-                        className="tag tag-missav tag-missav-link"
+                        className="tag tag-fanhao tag-fanhao-link"
                         title={`搜尋：${g}`}
                       >
                         {g}
@@ -724,7 +724,7 @@ export default function VideoPage() {
             </p>
             <button
               type="button"
-              className="btn-primary btn-missav"
+              className="btn-primary btn-fanhao"
               disabled={dlUi.mode === "working"}
               onClick={() => void startDownload()}
             >
@@ -761,7 +761,7 @@ export default function VideoPage() {
               <div className="dl-status-panel">
                 <p className="dl-status-line">伺服器上已有此片的 MP4，可直接下載；再按上方「下載」也會沿用同一檔案、不會重跑合併。</p>
                 <a
-                  className="btn-primary btn-missav"
+                  className="btn-primary btn-fanhao"
                   href={downloadFileUrl(dlUi.jobId)}
                   download={dlUi.filename}
                   style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}
@@ -779,7 +779,7 @@ export default function VideoPage() {
                 <p className="dl-msg">{dlUi.message}</p>
                 <button
                   type="button"
-                  className="btn-secondary-missav"
+                  className="btn-secondary-fanhao"
                   onClick={() => {
                     clearActiveDownload(slug);
                     setDlUi({ mode: "idle" });

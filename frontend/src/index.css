@@ -1,3 +1,5 @@
+@import url("https://font.emtech.cc/css/MaokenAssortedSansTC");
+
 :root {
   --bg-deep: #07080d;
   --bg-panel: rgba(16, 18, 28, 0.82);
@@ -9,8 +11,9 @@
   --accent-glow: rgba(232, 197, 71, 0.12);
   --danger: #f08070;
   --radius: 16px;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-ui: "Outfit", system-ui, sans-serif;
+  /** 貓啃什錦黑（emfont，詳見 https://font.emtech.cc/fonts/MaokenAssortedSansTC） */
+  --font-display: "MaokenAssortedSansTC", "Fraunces", Georgia, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-ui: "MaokenAssortedSansTC", system-ui, "PingFang TC", "Microsoft JhengHei", sans-serif;
   --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.45);
   /** 內容區水平內距（與 safe-area 併用） */
   --page-gutter: clamp(0.75rem, 3.5vw, 2.5rem);
@@ -56,7 +59,7 @@ button,
 .lang-switch-item,
 .search-bar button,
 .btn-primary,
-.btn-secondary-missav,
+.btn-secondary-fanhao,
 .site-nav-mobile-section-title {
   touch-action: manipulation;
 }
@@ -267,8 +270,13 @@ code.inline-code {
 }
 
 .lang-switch-flag {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Noto Emoji", sans-serif;
   font-size: 1.15rem;
   line-height: 1;
+}
+
+.lang-switch-item > span:first-child {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Noto Emoji", sans-serif;
 }
 
 .lang-switch-label {
@@ -374,9 +382,9 @@ code.inline-code {
   font-weight: 600;
 }
 
-/* 首頁 hero（對齊 missav dm265 語感）
+/* 首頁 hero（對齊既有站點語感）
    勿對整欄 align-items:center，否則子項依內容寬度收縮，搜尋列會變窄條 */
-.home-missav .app-header-hero {
+.home-fanhao .app-header-hero {
   text-align: center;
   align-items: stretch;
   max-width: 1320px;
@@ -384,10 +392,10 @@ code.inline-code {
   margin-right: auto;
 }
 
-.home-missav .app-header-hero > .home-kicker,
-.home-missav .app-header-hero > .home-hero-title,
-.home-missav .app-header-hero > .header-top,
-.home-missav .app-header-hero > .hero-sub {
+.home-fanhao .app-header-hero > .home-kicker,
+.home-fanhao .app-header-hero > .home-hero-title,
+.home-fanhao .app-header-hero > .header-top,
+.home-fanhao .app-header-hero > .hero-sub {
   align-self: center;
   max-width: 100%;
 }
@@ -685,13 +693,13 @@ code.inline-code {
   font-size: 1rem;
 }
 
-.home-missav .search-bar-hero input {
+.home-fanhao .search-bar-hero input {
   padding: 0.92rem 1.25rem;
   font-size: clamp(1.05rem, 2.2vw, 1.15rem);
   border-radius: 14px;
 }
 
-.home-missav .search-bar-hero button {
+.home-fanhao .search-bar-hero button {
   padding: 0.92rem 1.6rem;
   font-size: clamp(1rem, 2vw, 1.08rem);
   border-radius: 14px;
@@ -727,7 +735,7 @@ code.inline-code {
   line-height: 1.65;
 }
 
-.home-missav .header-tag {
+.home-fanhao .header-tag {
   font-size: clamp(0.78rem, 1.4vw, 0.88rem);
   letter-spacing: 0.12em;
 }
@@ -1445,8 +1453,8 @@ code.inline-code {
   padding: 1rem 0 2rem;
 }
 
-/* —— 詳情頁（參考 missav：大標題、播放器、資訊分區、無廣告區） —— */
-.detail-missav {
+/* —— 詳情頁（大標題、播放器、資訊分區、無廣告區） —— */
+.detail-fanhao {
   overflow-x: hidden;
   position: relative;
 }
@@ -1617,7 +1625,7 @@ code.inline-code {
   overflow: hidden;
 }
 
-.player-missav {
+.player-fanhao {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1705,7 +1713,7 @@ code.inline-code {
   gap: 0.45rem;
 }
 
-.tag-row-missav {
+.tag-row-fanhao {
   margin-bottom: 0;
 }
 
@@ -1718,24 +1726,24 @@ code.inline-code {
   color: var(--text);
 }
 
-.tag-missav {
+.tag-fanhao {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-.tag-missav:hover {
+.tag-fanhao:hover {
   border-color: var(--accent-soft);
   background: rgba(232, 197, 71, 0.08);
 }
 
-.tag-missav-link {
+.tag-fanhao-link {
   text-decoration: none;
   color: inherit;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.tag-missav-link:focus-visible {
+.tag-fanhao-link:focus-visible {
   outline: 2px solid var(--accent-soft);
   outline-offset: 2px;
 }
@@ -1806,7 +1814,7 @@ code.inline-code {
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
 }
 
-.btn-missav:hover:not(:disabled) {
+.btn-fanhao:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
@@ -1820,7 +1828,7 @@ code.inline-code {
   cursor: not-allowed;
 }
 
-.btn-secondary-missav {
+.btn-secondary-fanhao {
   margin-top: 0.75rem;
   width: 100%;
   padding: 0.68rem 1rem;
@@ -1835,7 +1843,7 @@ code.inline-code {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.btn-secondary-missav:hover {
+.btn-secondary-fanhao:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.18);
 }
@@ -1987,12 +1995,12 @@ code.inline-code {
   }
 }
 
-.home-missav .hero-sub {
+.home-fanhao .hero-sub {
   text-align: left;
 }
 
 @media (min-width: 640px) {
-  .home-missav .hero-sub {
+  .home-fanhao .hero-sub {
     text-align: center;
     margin-left: auto;
     margin-right: auto;
@@ -2005,19 +2013,19 @@ code.inline-code {
     padding-inline: 0.7rem;
   }
 
-  .home-missav .search-bar-hero {
+  .home-fanhao .search-bar-hero {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
     max-width: none;
   }
 
-  .home-missav .search-bar-hero button {
+  .home-fanhao .search-bar-hero button {
     width: 100%;
     min-height: var(--touch-target);
   }
 
-  .home-missav .search-bar-hero input {
+  .home-fanhao .search-bar-hero input {
     min-height: var(--touch-target);
     width: 100%;
   }
@@ -2056,7 +2064,7 @@ code.inline-code {
     overflow-wrap: anywhere;
   }
 
-  .player-missav {
+  .player-fanhao {
     border-radius: 12px;
   }
 
@@ -2073,7 +2081,7 @@ code.inline-code {
   }
 
   .btn-primary,
-  .btn-secondary-missav {
+  .btn-secondary-fanhao {
     min-height: var(--touch-target);
   }
 

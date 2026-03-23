@@ -48,7 +48,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="page-shell home-missav">
+    <div className="page-shell home-fanhao">
       <SiteHeader />
       <header className="app-header app-header-hero">
         <p className="home-kicker">免費高清 · 本站聚合瀏覽</p>

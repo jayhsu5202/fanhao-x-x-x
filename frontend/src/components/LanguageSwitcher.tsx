@@ -26,7 +26,7 @@ export default function LanguageSwitcher({ compact = false }: { compact?: boolea
         aria-expanded={open}
         aria-controls={listId}
         aria-label="介面語系與影片頁來源語言"
-        title="決定 MissAV 影片頁／縮圖／詳情與下載的語系。列表卡片標題多來自推薦引擎，未必隨語系改變。"
+        title="決定來源影片頁／縮圖／詳情與下載的語系。列表卡片標題多來自推薦引擎，未必隨語系改變。"
         onClick={() => setOpen((v) => !v)}
       >
         <span className="lang-switch-flag" aria-hidden>

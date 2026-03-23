@@ -33,7 +33,7 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
     <header className={shellClass}>
       <div className="site-header-bar">
         <Link className={`brand ${tone === "detail" ? "brand-sm" : ""}`} to="/">
-          MissAV 瀏覽
+          My日系影片
         </Link>
 
         <nav className="site-nav-desktop" aria-label="影片分類">
