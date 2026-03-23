@@ -12,7 +12,8 @@ export const NAV_MENU = [
       { label: "無碼流出", to: "/search?q=無碼流出" },
       { label: "中文字幕", to: "/search?q=中文字幕" },
       { label: "女優", to: "/search?q=女優" },
-      { label: "類型", to: "/search?q=熟女" },
+      { label: "類型", to: "/search?q=類型" },
+      { label: "發行商", to: "/search?q=發行商" },
     ],
   },
   {
@@ -40,10 +41,10 @@ export const NAV_MENU = [
     label: "亞洲 AV",
     to: "/c/madou",
     children: [
-      { label: "亞洲精選", to: "/c/madou" },
-      { label: "麻豆", to: "/search?q=麻豆" },
+      { label: "麻豆傳媒（同分類列表）", to: "/c/madou" },
+      { label: "麻豆傳媒（搜尋）", to: "/search?q=麻豆傳媒" },
       { label: "國產", to: "/search?q=國產" },
-      { label: "MD 關鍵字", to: "/search?q=MD" },
+      { label: "MD", to: "/search?q=MD" },
     ],
   },
 ] as const;

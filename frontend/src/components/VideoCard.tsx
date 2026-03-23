@@ -35,26 +35,40 @@ function formatDurationSec(seconds: unknown): string | null {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-function stringArrayTop(arr: unknown, max: number): string[] {
-  if (!Array.isArray(arr)) return [];
-  const out: string[] = [];
-  for (const x of arr) {
-    if (typeof x === "string" && x.trim()) out.push(x.trim());
-    if (out.length >= max) break;
-  }
-  return out;
+/** Recombee `released_at`：Unix 秒（number／float） */
+function formatReleasedAt(ts: unknown): string | null {
+  if (typeof ts !== "number" || !Number.isFinite(ts) || ts <= 0) return null;
+  const d = new Date(ts * 1000);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-/** 列表小標：優先 tags → genres → 單一 type */
+const LIST_CHIPS_MAX = 3;
+
+/** 列表小標：合併 tags、genres、labels（去重），不足再退回 type */
 function pickListChips(v: Record<string, unknown> | undefined, max: number): string[] {
   if (!v) return [];
-  const fromTags = stringArrayTop(v.tags, max);
-  if (fromTags.length) return fromTags;
-  const fromGenres = stringArrayTop(v.genres, max);
-  if (fromGenres.length) return fromGenres;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const pushFrom = (arr: unknown) => {
+    if (!Array.isArray(arr)) return;
+    for (const x of arr) {
+      if (typeof x !== "string" || !x.trim()) continue;
+      const t = x.trim();
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+      if (out.length >= max) return;
+    }
+  };
+  pushFrom(v.tags);
+  pushFrom(v.genres);
+  pushFrom(v.labels);
+  if (out.length > 0) return out;
   const typ = v.type;
   if (typeof typ === "string" && typ.trim()) return [typ.trim()];
-  return stringArrayTop(v.labels, max);
+  return [];
 }
 
 export default function VideoCard({
@@ -76,7 +90,9 @@ export default function VideoCard({
   const vals = item.values;
   const title = pickTitle(vals, item.id);
   const durationLabel = formatDurationSec(vals?.duration);
-  const chips = pickListChips(vals, 3);
+  const releasedLabel = formatReleasedAt(vals?.released_at);
+  const hasChineseSubtitle = vals?.has_chinese_subtitle === true;
+  const chips = pickListChips(vals, LIST_CHIPS_MAX);
   const thumbSrc = thumbnailUrlForSlug(item.id, locale);
   const [thumbOk, setThumbOk] = useState(true);
 
@@ -100,11 +116,11 @@ export default function VideoCard({
             />
           ) : null}
           <div className="card-thumb-shade" aria-hidden />
-          {durationLabel ? (
-            <span className="card-duration-badge" aria-hidden>
-              {durationLabel}
-            </span>
-          ) : null}
+          <div className="card-thumb-badges" aria-hidden>
+            {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
+            {releasedLabel ? <span className="card-meta-badge card-meta-badge-date">{releasedLabel}</span> : null}
+            {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
+          </div>
           <span className="card-play" aria-hidden>
             <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
               <circle cx="24" cy="24" r="22" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.35)" />

@@ -57,7 +57,7 @@ button,
 .search-bar button,
 .btn-primary,
 .btn-secondary-missav,
-.site-nav-mobile-group-head {
+.site-nav-mobile-section-title {
   touch-action: manipulation;
 }
 
@@ -344,55 +344,33 @@ code.inline-code {
   color: var(--muted);
 }
 
-/* 手機：分類主項點擊展開子連結（對齊 missav 選單互動，路由仍為 /c/*、/search） */
-.site-nav-mobile-group {
+/* 手機：分區標題 + 子連結一律可見（點一次即 /c/* 或 /search，無需先展開） */
+.site-nav-mobile-divider-label {
+  margin: 0.5rem 0 0.25rem;
+  padding: 0.35rem 0.9rem 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.site-nav-mobile-section {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.5rem 0.65rem;
   border-radius: 10px;
-  border: 1px solid transparent;
-}
-
-.site-nav-mobile-group.is-open {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--stroke);
-}
-
-.site-nav-mobile-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.82rem 0.9rem;
-  font-size: clamp(1.02rem, 0.4vw + 0.92rem, 1.12rem);
-  font-weight: 600;
-  color: var(--text);
-  background: transparent;
-  border: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 10px;
-}
-
-.site-nav-mobile-chevron {
-  width: 0.45rem;
-  height: 0.45rem;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
-  transform: rotate(45deg);
-  transition: transform 0.2s ease;
-  flex-shrink: 0;
-  margin-right: 0.2rem;
-  opacity: 0.85;
-}
-
-.site-nav-mobile-group.is-open .site-nav-mobile-chevron {
-  transform: rotate(-135deg);
-}
-
-.site-nav-mobile-group-body {
-  padding: 0 0.75rem 0.65rem 1.1rem;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.02);
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.05rem;
+}
+
+.site-nav-mobile-section-title {
+  padding: 0.35rem 0.4rem 0.5rem;
+  font-size: clamp(0.95rem, 0.35vw + 0.88rem, 1.02rem);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
 }
 
 .site-nav-panel-sublink {
@@ -960,11 +938,21 @@ code.inline-code {
   pointer-events: none;
 }
 
-.card-duration-badge {
+.card-thumb-badges {
   position: absolute;
   right: 0.45rem;
   bottom: 0.45rem;
+  left: 0.45rem;
   z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.card-meta-badge {
   padding: 0.12rem 0.4rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -973,7 +961,15 @@ code.inline-code {
   color: #fff;
   background: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
-  pointer-events: none;
+}
+
+.card-meta-badge-sub {
+  background: rgba(180, 60, 80, 0.88);
+}
+
+.card-meta-badge-date {
+  font-weight: 500;
+  font-size: 0.68rem;
 }
 
 .card-chip-row {

@@ -1,0 +1,228 @@
+{
+  "generatedAt": "2026-03-23T03:45:00Z",
+  "recommTopLevelKeys": [
+    "id",
+    "values"
+  ],
+  "valueKeyCount": 29,
+  "valueKeys": {
+    "actors": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "細田あつし"
+      ]
+    },
+    "actresses": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "翔田千里",
+        "小早川怜子",
+        "推川ゆうり"
+      ]
+    },
+    "actresses_count": {
+      "types": [
+        "int"
+      ],
+      "example": 3
+    },
+    "directors": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "中野弥生"
+      ]
+    },
+    "dm": {
+      "types": [
+        "int"
+      ],
+      "example": 0
+    },
+    "duration": {
+      "types": [
+        "int"
+      ],
+      "example": 8038
+    },
+    "genres": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "ドラマ",
+        "熟女",
+        "お母さん",
+        "独占配信",
+        "人妻・主婦",
+        "義母"
+      ]
+    },
+    "has_chinese_subtitle": {
+      "types": [
+        "bool"
+      ],
+      "example": false
+    },
+    "has_english_subtitle": {
+      "types": [
+        "bool"
+      ],
+      "example": false
+    },
+    "is_uncensored_leak": {
+      "types": [
+        "bool"
+      ],
+      "example": true
+    },
+    "labels": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "Mother in law"
+      ]
+    },
+    "markers": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "グローバルメディアエンタテインメント"
+      ]
+    },
+    "released_at": {
+      "types": [
+        "float"
+      ],
+      "example": 1769212800.0
+    },
+    "series": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "嫁の母と禁断性交"
+      ]
+    },
+    "tags": {
+      "types": [
+        "list(empty)",
+        "list[str]"
+      ],
+      "example": [
+        "ライディングポジション",
+        "巨乳",
+        "美しいお尻",
+        "後に",
+        "パイズリ",
+        "タイの女の子",
+        "エレファントメディア",
+        "ふしだらな女"
+      ]
+    },
+    "title": {
+      "types": [
+        "str"
+      ],
+      "example": "グローバルメディア25周年記念特別作品 新・嫁の母と禁断性交 SP 妻よりもお義母さんと義叔母さんとお義姉さんの方がいいよ… 翔田千里・小早川怜子・推川ゆうり"
+    },
+    "title_cn": {
+      "types": [
+        "str"
+      ],
+      "example": "环球传媒25周年特别制作 新片《与岳母的禁忌之恋 SP》 我更喜欢岳母、岳母大人和小姨子，而不是我的妻子…… 庄田千里、小早川玲子、押川由里"
+    },
+    "title_de": {
+      "types": [
+        "str"
+      ],
+      "example": "Global Media 25th Anniversary Special Production New Forbidden Sex with My Wife's Mother SP I prefer my gay mother, aunt…"
+    },
+    "title_en": {
+      "types": [
+        "str"
+      ],
+      "example": "Global Media 25th Anniversary Special Production New Forbidden Sex with My Wife's Mother SP I prefer my mother-in-law, a…"
+    },
+    "title_fil": {
+      "types": [
+        "str"
+      ],
+      "example": "Ika-25 Anibersaryo ng Global Media Espesyal na Produksyon Bagong Bawal na Pakikipagtalik sa Ina ng Aking Asawa SP Mas gu…"
+    },
+    "title_fr": {
+      "types": [
+        "str"
+      ],
+      "example": "Production spéciale 25e anniversaire de Global Media : Nouvelle scène de sexe interdite avec la mère de ma femme (SP). J…"
+    },
+    "title_id": {
+      "types": [
+        "str"
+      ],
+      "example": "Produksi Spesial Ulang Tahun ke-25 Global Media: Seks Terlarang dengan Ibu Istriku (SP) Aku lebih menyukai ibu mertua, b…"
+    },
+    "title_ko": {
+      "types": [
+        "str"
+      ],
+      "example": "글로벌 미디어 25주년 기념 특별 작품 신·며느리의 어머니와 금단 성교"
+    },
+    "title_ms": {
+      "types": [
+        "str"
+      ],
+      "example": "Produksi Khas Ulang Tahun ke-25 Media Global Seks Terlarang Baharu dengan Ibu Isteri Saya SP Saya lebih suka ibu mertua,…"
+    },
+    "title_pt": {
+      "types": [
+        "str"
+      ],
+      "example": "Produção Especial de 25º Aniversário da Global Media: Novo Filme \"Sexo Proibido com a Mãe da Minha Esposa\" (SP) Prefiro …"
+    },
+    "title_th": {
+      "types": [
+        "str"
+      ],
+      "example": "ผลงานพิเศษฉลองครบรอบ 25 ปี Global Media เรื่องใหม่ เซ็กส์ต้องห้ามกับแม่ของภรรยา ฉันชอบแม่ยาย ป้ายาย และน้องสะใภ้มากกว่าภ…"
+    },
+    "title_vi": {
+      "types": [
+        "str"
+      ],
+      "example": "Phim đặc biệt kỷ niệm 25 năm thành lập Global Media: Tình dục cấm kỵ mới với mẹ vợ (SP) Tôi thích mẹ vợ, dì vợ và chị dâ…"
+    },
+    "title_zh": {
+      "types": [
+        "str"
+      ],
+      "example": "環球傳媒25週年特別製作 新片《與岳母的禁忌之戀 SP》 我更喜歡岳母、岳母大人和小姨子，而不是我的妻子…… 莊田千里、小早川玲子、押川由裡"
+    },
+    "type": {
+      "types": [
+        "str"
+      ],
+      "example": "uncensored-leak"
+    }
+  },
+  "sources": [
+    "search:麻豆傳媒",
+    "search:素人",
+    "featured:anonymous"
+  ],
+  "itemsSampled": 60
+}

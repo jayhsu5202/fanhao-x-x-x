@@ -42,10 +42,10 @@ function pickRid(d: RecombeeFeedResponse): string | null {
 }
 
 /** 與後端 recombeeHasMorePages 一致；舊版 API 無 hasMore 時用同規則推斷 */
-function readHasMore(d: RecombeeFeedResponse, pageSize: number): boolean {
+function readHasMore(d: RecombeeFeedResponse, _pageSize: number): boolean {
   if (typeof d.hasMore === "boolean") return d.hasMore;
   const len = d.recomms?.length ?? 0;
-  return Boolean(pickRid(d) && len >= pageSize);
+  return Boolean(pickRid(d) && len > 0);
 }
 
 /**

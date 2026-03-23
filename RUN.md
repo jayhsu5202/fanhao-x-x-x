@@ -26,6 +26,9 @@
 | `UPSTREAM_CONNECTIONS_PER_ORIGIN` | 選填；undici 對**同一 origin** 的併發連線數（HLS 分片、縮圖、MissAV HTML 等），預設 `192`，上限 `384` |
 | `THUMB_PARSE_CACHE_TTL_MS` | 選填；上述解析出的封面 CDN URL 記憶體快取 TTL（毫秒），預設 15 分鐘，最少 60 秒 |
 | `THUMB_PARSE_CACHE_MAX_ENTRIES` | 選填；快取最多筆數，預設 `2048`，逾量刪最舊 |
+| `RECOMBEE_FEED_DEFAULT_BATCH` | 選填；`GET /api/featured`、`/api/search`、`/api/browse/*` **未帶 `limit`** 時的預設筆數，預設 `100`。別名：`RECOMBEE_FEED_MAX_BATCH`、`FEATURED_MAX_LIMIT`（舊名，仍有效） |
+| `RECOMBEE_FEED_REQUEST_MAX` | 選填；單次請求允許的 `limit` 上限（防極大 query），預設 `1000000` |
+| `RECOMBEE_TIMEOUT_MS` / `RECOMBEE_RETRIES` / `RECOMBEE_CONNECTIONS` | 選填；Recombee HTTP 逾時、重試、連線數（見 `server/src/config.ts`） |
 
 前端（選用）：
 
@@ -57,18 +60,30 @@ npm run dev
 
 前端路由：`/` 首頁（熱門推薦網格）、`/search?q=關鍵字` 獨立搜尋結果頁；舊書籤 `/?q=` 會自動導向 `/search?q=`。
 
+首頁熱門網格固定請求 `GET /api/featured?limit=32`（見 `frontend/src/pages/HomePage.tsx` 的 `PAGE_SIZE`），與後端「未帶 limit 時的預設筆數」無關。
+
+## Recombee 目錄欄位（文件）
+
+專案根目錄執行（需可連線 Recombee）：
+
+```bash
+python3 scripts/dump_recombee_catalog_fields.py
+```
+
+會更新 `docs/recombee-catalog-field-inventory.json`；人讀摘要見 `docs/RECOMBEE_CATALOG_FIELDS.md`。
+
 ## API 摘要
 
 - `GET /api/health` — 健康檢查、`pythonAvailable`、`downloadQueueConcurrency`、`upstreamConnectionsPerOrigin`、縮圖／影片頁 HTML 佇列與快取：`thumbHtmlFetchConcurrency`、`thumbHtmlQueueSize`、`thumbHtmlQueuePending`、`videoPageFetchConcurrency`、`videoPageFetchQueueSize`、`videoPageFetchQueuePending`、`thumbParseCacheEntries`
 - `GET /api/locales` — 可選語系列表（給前端選單）；實際抓取仍看請求上的語系
 - **MissAV 語系**：`GET /api/videos/:slug`、`/api/thumbnail/:slug`、`/api/preview/:slug` 支援 query `?locale=zh-Hant|zh-Hans|en|ja|ko`（與 `missav-locale` 對照表一致），或標頭 `X-Missav-Locale`；`POST /api/downloads` 亦讀同一標頭以組 `pageUrl`
-- `GET /api/search?query=&limit=` — Recombee 搜尋（1–50）；**`values` 內無圖片欄位**
+- `GET /api/search?query=&limit=` — Recombee 搜尋；`limit` 預設為 `RECOMBEE_FEED_DEFAULT_BATCH`（預設 100），上限 `RECOMBEE_FEED_REQUEST_MAX`；**`values` 內無圖片欄位**
 - `GET /api/featured?limit=&recommId=&cursor=&fresh=` — 首頁匿名趨勢、**持續載入**：
-  1. **首屏**：只帶 `limit`（預設 **80**，上限見環境變數 `FEATURED_MAX_LIMIT`，預設 **100**）→ `RecommendItemsToUser`。
+  1. **首屏**：只帶 `limit`（未帶時預設 **`RECOMBEE_FEED_DEFAULT_BATCH`**，預設 100）→ `RecommendItemsToUser`。
   2. **同一串下一頁**：`recommId` 或 `cursor`（上一則的 `recomId`）→ `RecommendNextItems`。
   3. **`fresh=1`**：強制再打一次 `RecommendItemsToUser`（新串），與 `recommId` 並存時以 `fresh` 為準；首頁在當前串無法續時用此接續請求。
-  4. **前端**：同一串用 `recommId` 續載；需要時改打 `fresh=1` 新串；列表資料不設總筆數上限。請求節流約 320ms。
-  5. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 在仍有 `recommId` 或本次有項目時為真，利於無限捲動銜接。
+  4. **前端**：同一串用 `recommId` 續載；需要時改打 `fresh=1` 新串；列表資料不設總筆數上限。請求節流約 280ms（見 `useInfiniteRecombeeFeed`）。
+  5. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 僅在**無 `recommId` 或本批 `recomms` 為空**時為 `false`，不因本批筆數未滿 `limit` 而提早停（利於無限捲動）。
 - `GET /api/browse/:category?limit=` — 分類：`jav`（日本 AV／趨勢）、`amateur`（素人）、`uncensored`（無碼）、`madou`（亞洲，關鍵字「麻豆」）
 - `GET /api/recommendations?itemId=&limit=` — 詳情頁關聯推薦
 - `GET /api/preview/:slug` — 只抓影片頁並回傳 `og:image` 縮圖 URL（除錯／第三方用）
@@ -98,6 +113,10 @@ npm run build
 ```
 
 產物在 `frontend/dist/`。可搭配任意靜態伺服器，並將 `VITE_API_URL` 設為公開的 API 網址；後端 `PUBLIC_BASE_URL` 與 `CORS_ORIGIN` 需一併調整。
+
+## Recombee 目錄欄位
+
+重新掃描並寫入 JSON：`python3 scripts/dump_recombee_catalog_fields.py`（輸出 `docs/recombee-catalog-field-inventory.json`）。人讀摘要見 [docs/RECOMBEE_CATALOG_FIELDS.md](docs/RECOMBEE_CATALOG_FIELDS.md)。
 
 ## 免責
 

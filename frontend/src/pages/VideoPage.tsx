@@ -11,6 +11,7 @@ import {
 } from "../api/client";
 import { pollDownloadUntilTerminal, type DownloadQueueInfo, type JobStatusResponse } from "../lib/downloadPoll";
 import { clearActiveDownload, readActiveDownload, saveActiveDownload } from "../lib/downloadSession";
+import FavoriteHeart from "../components/FavoriteHeart";
 import SiteHeader from "../components/SiteHeader";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
@@ -43,6 +44,7 @@ type BySlugRes = {
 
 type RecRes = { recomms: RecommItem[] };
 type HealthRes = { downloadQueueConcurrency?: number };
+type FavStatusRes = { favorited: boolean };
 
 type DownloadUi =
   | { mode: "idle" }
@@ -78,6 +80,7 @@ export default function VideoPage() {
   /** 按下播放後才掛載 HLS，避免進頁就拉 m3u8／分片 */
   const [playbackStarted, setPlaybackStarted] = useState(false);
   const [playerErr, setPlayerErr] = useState<string | null>(null);
+  const [favorited, setFavorited] = useState<boolean | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
   /** 使用者按下「下載」後略過尚未完成的進頁查詢結果，避免蓋掉進行中狀態 */
   const downloadKickRef = useRef(0);
@@ -109,6 +112,22 @@ export default function VideoPage() {
   useEffect(() => {
     setPlaybackStarted(false);
     setPlayerErr(null);
+    setFavorited(null);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    apiGet<FavStatusRes>(`/api/favorites/status/${encodeURIComponent(slug)}`)
+      .then((r) => {
+        if (!cancelled) setFavorited(Boolean(r.favorited));
+      })
+      .catch(() => {
+        if (!cancelled) setFavorited(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   useEffect(() => {
@@ -548,7 +567,20 @@ export default function VideoPage() {
               </div>
             </div>
 
-            <h1 className="detail-h1">{data.title}</h1>
+            <div className="detail-title-row">
+              <h1 className="detail-h1">{data.title}</h1>
+              {favorited != null ? (
+                <FavoriteHeart
+                  slug={data.slug}
+                  title={data.title}
+                  initialFavorited={favorited}
+                  className="detail-favorite-heart"
+                  onAfterChange={(f) => setFavorited(f)}
+                />
+              ) : (
+                <span className="detail-favorite-placeholder" aria-hidden />
+              )}
+            </div>
 
             <div className="detail-chips-row">
               {data.video_code ? <span className="chip chip-code">{data.video_code}</span> : null}
@@ -703,7 +735,7 @@ export default function VideoPage() {
             </div>
             <div className="grid-cards grid-cards-related">
               {related.map((it) => (
-                <VideoCard key={`${it.id}-${locale}`} item={it} thumbLoading="lazy" />
+                <VideoCard key={`${it.id}-${locale}`} item={it} thumbLoading="lazy" showFavoriteHeart />
               ))}
             </div>
           </section>
