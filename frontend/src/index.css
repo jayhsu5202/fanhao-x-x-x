@@ -1329,6 +1329,52 @@ code.inline-code {
   object-fit: contain;
 }
 
+.player-wrap--clickplay {
+  position: relative;
+}
+
+.player-start-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.45) 100%);
+  color: #fff;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.player-start-overlay:hover {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.player-start-label {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.player-error-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  padding: 0.65rem 0.85rem;
+  background: rgba(120, 20, 20, 0.92);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 .detail-player-note {
   margin: 0 0 1.75rem;
   font-size: clamp(0.82rem, 1.4vw, 0.9rem);

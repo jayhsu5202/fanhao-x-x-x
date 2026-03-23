@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiGet } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
@@ -13,8 +12,9 @@ type FeaturedRes = {
   hasMore?: boolean;
 };
 
-const PAGE_SIZE = 80;
-const MIN_FETCH_GAP_MS = 450;
+/** 單批較小可減少首屏同時打縮圖／DOM 壓力，捲動較順 */
+const PAGE_SIZE = 32;
+const MIN_FETCH_GAP_MS = 280;
 
 function docContentShort(extra = 280): boolean {
   const vh = window.innerHeight;
@@ -53,7 +53,9 @@ export default function HomePage() {
   const canNextRef = useRef(false);
   const lastFetchEndRef = useRef(0);
   const feedGenRef = useRef(0);
+  const itemsRef = useRef<RecommItem[]>([]);
 
+  itemsRef.current = items;
   recommIdRef.current = recommId;
   canNextRef.current = canRecommendNext;
 
@@ -121,14 +123,9 @@ export default function HomePage() {
       setFeatErr(null);
 
       const batch = d.recomms ?? [];
-      let newUniqueCount = 0;
-      flushSync(() => {
-        setItems((prev) => {
-          const { next, added } = appendUniqueById(prev, batch);
-          newUniqueCount = added;
-          return next;
-        });
-      });
+      const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
+      itemsRef.current = next;
+      setItems(next);
 
       const rid = d.recomId ?? null;
       setRecommId(rid);
@@ -168,7 +165,7 @@ export default function HomePage() {
       (entries) => {
         if (entries[0]?.isIntersecting) void loadMore();
       },
-      { root: null, rootMargin: "720px", threshold: 0 }
+      { root: null, rootMargin: "480px", threshold: 0 }
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -233,7 +230,7 @@ export default function HomePage() {
             <div className="featured-matrix featured-matrix--home" aria-busy={loadingMore}>
               {items.map((it) => (
                 <div key={`${it.id}-${locale}`} className="featured-card-slot">
-                  <VideoCard item={it} />
+                  <VideoCard item={it} thumbLoading="lazy" />
                 </div>
               ))}
               <div

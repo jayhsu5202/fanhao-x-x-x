@@ -75,6 +75,9 @@ export default function VideoPage() {
   const [dlTick, setDlTick] = useState(0);
   const [related, setRelated] = useState<RecommItem[] | null>(null);
   const [dlConcurrency, setDlConcurrency] = useState<number | null>(null);
+  /** 按下播放後才掛載 HLS，避免進頁就拉 m3u8／分片 */
+  const [playbackStarted, setPlaybackStarted] = useState(false);
+  const [playerErr, setPlayerErr] = useState<string | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
   /** 使用者按下「下載」後略過尚未完成的進頁查詢結果，避免蓋掉進行中狀態 */
   const downloadKickRef = useRef(0);
@@ -102,6 +105,11 @@ export default function VideoPage() {
     const el = videoRef.current;
     if (el && posterUrl) el.setAttribute("poster", posterUrl);
   }, [posterUrl]);
+
+  useEffect(() => {
+    setPlaybackStarted(false);
+    setPlayerErr(null);
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -142,13 +150,17 @@ export default function VideoPage() {
   useEffect(() => {
     const el = videoRef.current;
     const raw = data?.m3u8_play_url;
-    if (!el || !raw) return;
+    if (!playbackStarted || !el || !raw) return undefined;
+
+    setPlayerErr(null);
     const url = resolveMediaUrl(raw);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+
+    let cleaned = false;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
@@ -160,21 +172,37 @@ export default function VideoPage() {
       hlsRef.current = hls;
       hls.loadSource(url);
       hls.attachMedia(el);
+      const onParsed = () => {
+        if (cleaned) return;
+        void el.play().catch(() => {});
+      };
+      hls.on(Hls.Events.MANIFEST_PARSED, onParsed);
       return () => {
+        cleaned = true;
+        hls.off(Hls.Events.MANIFEST_PARSED, onParsed);
         hls.destroy();
         hlsRef.current = null;
       };
     }
+
     if (el.canPlayType("application/vnd.apple.mpegurl")) {
       el.src = url;
+      const onMeta = () => {
+        if (cleaned) return;
+        void el.play().catch(() => {});
+      };
+      el.addEventListener("loadedmetadata", onMeta, { once: true });
       return () => {
+        cleaned = true;
+        el.removeEventListener("loadedmetadata", onMeta);
         el.removeAttribute("src");
         el.load();
       };
     }
-    setErr("此瀏覽器無法播放 HLS");
+
+    setPlayerErr("此瀏覽器無法播放 HLS");
     return undefined;
-  }, [data?.m3u8_play_url]);
+  }, [playbackStarted, data?.m3u8_play_url]);
 
   useEffect(() => {
     downloadKickRef.current = 0;
@@ -494,8 +522,29 @@ export default function VideoPage() {
         <div className="detail-yt-grid">
           <div className="detail-yt-main">
             <div className="detail-player-stage">
-              <div className="player-wrap player-missav player-elevated">
-                <video ref={videoRef} controls playsInline poster={posterUrl} preload="metadata" />
+              <div className="player-wrap player-missav player-elevated player-wrap--clickplay">
+                <video ref={videoRef} controls playsInline poster={posterUrl} preload="none" />
+                {!playbackStarted ? (
+                  <button
+                    type="button"
+                    className="player-start-overlay"
+                    onClick={() => setPlaybackStarted(true)}
+                    aria-label="開始播放影片"
+                  >
+                    <span className="player-start-icon" aria-hidden>
+                      <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
+                        <circle cx="32" cy="32" r="30" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.35)" />
+                        <path d="M26 20L46 32L26 44V20Z" fill="white" />
+                      </svg>
+                    </span>
+                    <span className="player-start-label">播放</span>
+                  </button>
+                ) : null}
+                {playerErr ? (
+                  <div className="player-error-banner" role="alert">
+                    {playerErr}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -507,7 +556,9 @@ export default function VideoPage() {
               {data.manufacturer ? <span className="chip chip-outline">{data.manufacturer}</span> : null}
             </div>
 
-            <p className="detail-player-note">播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。</p>
+            <p className="detail-player-note">
+              按下「播放」後才會向本站載入串流（不會進頁就自動拉片）。播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。
+            </p>
 
             <div className="detail-primary-below">
               {data.genres.length > 0 ? (
@@ -652,7 +703,7 @@ export default function VideoPage() {
             </div>
             <div className="grid-cards grid-cards-related">
               {related.map((it) => (
-                <VideoCard key={`${it.id}-${locale}`} item={it} />
+                <VideoCard key={`${it.id}-${locale}`} item={it} thumbLoading="lazy" />
               ))}
             </div>
           </section>
