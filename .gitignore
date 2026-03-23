@@ -60,6 +60,8 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+data/app.sqlite
+data/app.sqlite-journal
 
 # Flask stuff:
 instance/
@@ -174,5 +176,6 @@ node_modules/
 server/dist/
 frontend/dist/
 data/downloads/
+server/data/
 *.local
 .DS_Store

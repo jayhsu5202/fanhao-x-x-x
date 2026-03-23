@@ -12,9 +12,10 @@ type FeaturedRes = {
   hasMore?: boolean;
 };
 
-/** 單批較小可減少首屏同時打縮圖／DOM 壓力，捲動較順 */
 const PAGE_SIZE = 32;
 const MIN_FETCH_GAP_MS = 280;
+/** 連續「這批去重後 0 筆」時自動再請求次數；由捲動觸發時會歸零 */
+const MAX_AUTO_RETRY_ZERO_ADD = 12;
 
 function docContentShort(extra = 280): boolean {
   const vh = window.innerHeight;
@@ -32,6 +33,14 @@ function appendUniqueById(prev: RecommItem[], batch: RecommItem[]): { next: Reco
   }
   if (add.length === 0) return { next: prev, added: 0 };
   return { next: [...prev, ...add], added: add.length };
+}
+
+function featuredUrl(limit: number, opts: { recommId?: string | null } = {}): string {
+  const rid = opts.recommId?.trim();
+  if (rid) {
+    return `/api/featured?limit=${limit}&recommId=${encodeURIComponent(rid)}`;
+  }
+  return `/api/featured?limit=${limit}&fresh=1&_cb=${Date.now()}`;
 }
 
 export default function HomePage() {
@@ -54,6 +63,8 @@ export default function HomePage() {
   const lastFetchEndRef = useRef(0);
   const feedGenRef = useRef(0);
   const itemsRef = useRef<RecommItem[]>([]);
+  const zeroAddStreakRef = useRef(0);
+  const loadMoreRef = useRef<(o?: { userTriggered?: boolean }) => Promise<void>>(async () => {});
 
   itemsRef.current = items;
   recommIdRef.current = recommId;
@@ -75,19 +86,16 @@ export default function HomePage() {
     setCanRecommendNext(false);
     setInitialLoading(true);
     loadMoreLock.current = false;
+    zeroAddStreakRef.current = 0;
 
-    apiGet<FeaturedRes>(`/api/featured?limit=${PAGE_SIZE}`)
+    apiGet<FeaturedRes>(featuredUrl(PAGE_SIZE))
       .then((d) => {
         if (cancelled) return;
         const batch = d.recomms ?? [];
         const rid = d.recomId ?? null;
         setItems(appendUniqueById([], batch).next);
         setRecommId(rid);
-        const hm =
-          typeof d.hasMore === "boolean"
-            ? d.hasMore
-            : Boolean(rid || batch.length > 0);
-        setCanRecommendNext(Boolean(rid && hm));
+        setCanRecommendNext(Boolean(rid));
       })
       .catch((e) => {
         if (!cancelled) {
@@ -104,56 +112,64 @@ export default function HomePage() {
     };
   }, [locale]);
 
-  const loadMore = useCallback(async () => {
-    if (loadMoreLock.current || initialLoading) return;
-    if (Date.now() - lastFetchEndRef.current < MIN_FETCH_GAP_MS) return;
+  const loadMore = useCallback(
+    async (opts?: { userTriggered?: boolean }) => {
+      if (loadMoreLock.current || initialLoading) return;
+      if (Date.now() - lastFetchEndRef.current < MIN_FETCH_GAP_MS) return;
+      if (opts?.userTriggered) zeroAddStreakRef.current = 0;
 
-    const gen = feedGenRef.current;
-    loadMoreLock.current = true;
-    setLoadingMore(true);
-    try {
-      const useNext = canNextRef.current && recommIdRef.current;
-      const url = useNext
-        ? `/api/featured?limit=${PAGE_SIZE}&recommId=${encodeURIComponent(recommIdRef.current!)}`
-        : `/api/featured?limit=${PAGE_SIZE}&fresh=1`;
+      const gen = feedGenRef.current;
+      loadMoreLock.current = true;
+      setLoadingMore(true);
+      try {
+        const useNext = canNextRef.current && recommIdRef.current;
+        const url = useNext
+          ? featuredUrl(PAGE_SIZE, { recommId: recommIdRef.current })
+          : featuredUrl(PAGE_SIZE);
 
-      const d = await apiGet<FeaturedRes>(url);
-      if (gen !== feedGenRef.current) return;
+        const d = await apiGet<FeaturedRes>(url);
+        if (gen !== feedGenRef.current) return;
 
-      setFeatErr(null);
+        setFeatErr(null);
+        const batch = d.recomms ?? [];
+        const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
+        itemsRef.current = next;
+        setItems(next);
 
-      const batch = d.recomms ?? [];
-      const { next, added: newUniqueCount } = appendUniqueById(itemsRef.current, batch);
-      itemsRef.current = next;
-      setItems(next);
+        const rid = d.recomId ?? null;
+        setRecommId(rid);
 
-      const rid = d.recomId ?? null;
-      setRecommId(rid);
-      const serverHasMore =
-        typeof d.hasMore === "boolean"
-          ? d.hasMore
-          : Boolean(rid || batch.length > 0);
-
-      if (useNext) {
-        const dupOnly = batch.length > 0 && newUniqueCount === 0;
-        if (batch.length === 0 || dupOnly || !rid || !serverHasMore) {
-          setCanRecommendNext(false);
+        if (useNext) {
+          const dupOnly = batch.length > 0 && newUniqueCount === 0;
+          const emptyBatch = batch.length === 0;
+          if (emptyBatch || dupOnly || !rid) setCanRecommendNext(false);
+          else setCanRecommendNext(true);
         } else {
-          setCanRecommendNext(true);
+          setCanRecommendNext(Boolean(rid));
         }
-      } else {
-        setCanRecommendNext(Boolean(rid && serverHasMore));
+
+        if (newUniqueCount > 0) {
+          zeroAddStreakRef.current = 0;
+        } else if (zeroAddStreakRef.current < MAX_AUTO_RETRY_ZERO_ADD) {
+          zeroAddStreakRef.current += 1;
+          window.setTimeout(() => {
+            void loadMoreRef.current();
+          }, MIN_FETCH_GAP_MS);
+        }
+      } catch (e) {
+        if (gen === feedGenRef.current && itemsRef.current.length > 0) {
+          setFeatErr(e instanceof Error ? e.message : "載入更多失敗");
+        }
+      } finally {
+        if (gen === feedGenRef.current) lastFetchEndRef.current = Date.now();
+        loadMoreLock.current = false;
+        setLoadingMore(false);
       }
-    } catch {
-      /* 略過；使用者再捲動會重試 */
-    } finally {
-      if (gen === feedGenRef.current) {
-        lastFetchEndRef.current = Date.now();
-      }
-      loadMoreLock.current = false;
-      setLoadingMore(false);
-    }
-  }, [initialLoading]);
+    },
+    [initialLoading]
+  );
+
+  loadMoreRef.current = loadMore;
 
   const ready = !initialLoading;
 
@@ -163,7 +179,7 @@ export default function HomePage() {
 
     const obs = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) void loadMore();
+        if (entries[0]?.isIntersecting) void loadMore({ userTriggered: true });
       },
       { root: null, rootMargin: "480px", threshold: 0 }
     );
@@ -174,7 +190,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!ready || loadingMore) return;
     if (!docContentShort(240)) return;
-    void loadMore();
+    void loadMore({ userTriggered: true });
   }, [ready, loadingMore, items.length, loadMore]);
 
   function onSubmit(e: FormEvent) {
@@ -230,7 +246,7 @@ export default function HomePage() {
             <div className="featured-matrix featured-matrix--home" aria-busy={loadingMore}>
               {items.map((it) => (
                 <div key={`${it.id}-${locale}`} className="featured-card-slot">
-                  <VideoCard item={it} thumbLoading="lazy" />
+                  <VideoCard item={it} thumbLoading="lazy" showFavoriteHeart />
                 </div>
               ))}
               <div

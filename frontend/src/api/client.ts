@@ -64,6 +64,30 @@ export async function apiGet<T>(path: string): Promise<T> {
   return data as T;
 }
 
+export async function apiDelete<T>(path: string): Promise<T> {
+  const loc = getStoredMissavLocale();
+  const res = await fetch(`${base}${path}`, {
+    method: "DELETE",
+    headers: { [LOCALE_HEADER]: loc },
+    credentials: "include",
+  });
+  const text = await res.text();
+  let data: T | ApiError = {} as T;
+  if (text) {
+    try {
+      data = JSON.parse(text) as T | ApiError;
+    } catch {
+      throw new Error(res.statusText || "Invalid JSON");
+    }
+  }
+  if (!res.ok && data && typeof data === "object" && "error" in data) {
+    const e = data as ApiError;
+    throw new Error(e.error?.message || res.statusText);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return data as T;
+}
+
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const loc = getStoredMissavLocale();
   const res = await fetch(`${base}${path}`, {
