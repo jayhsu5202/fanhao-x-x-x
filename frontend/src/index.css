@@ -967,11 +967,6 @@ code.inline-code {
   background: rgba(180, 60, 80, 0.88);
 }
 
-.card-meta-badge-date {
-  font-weight: 500;
-  font-size: 0.68rem;
-}
-
 .card-chip-row {
   display: flex;
   flex-wrap: wrap;

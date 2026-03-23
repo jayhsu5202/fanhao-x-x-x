@@ -83,7 +83,7 @@ python3 scripts/dump_recombee_catalog_fields.py
   2. **同一串下一頁**：`recommId` 或 `cursor`（上一則的 `recomId`）→ `RecommendNextItems`。
   3. **`fresh=1`**：強制再打一次 `RecommendItemsToUser`（新串），與 `recommId` 並存時以 `fresh` 為準；首頁在當前串無法續時用此接續請求。
   4. **前端**：同一串用 `recommId` 續載；需要時改打 `fresh=1` 新串；列表資料不設總筆數上限。請求節流約 280ms（見 `useInfiniteRecombeeFeed`）。
-  5. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 僅在**無 `recommId` 或本批 `recomms` 為空**時為 `false`，不因本批筆數未滿 `limit` 而提早停（利於無限捲動）。
+  5. **後端**：Recombee 走 **undici 連線重用**與 **429／5xx 重試**；`hasMore` 在**本批有項目**或**仍有 `recommId` 可 next** 時為 `true`（首頁即使暫無 `recommId` 仍可靠 `fresh=1` 續載）；僅**本批空且無 `recommId`** 為 `false`。不因未滿 `limit` 提早停。
 - `GET /api/browse/:category?limit=` — 分類：`jav`（日本 AV／趨勢）、`amateur`（素人）、`uncensored`（無碼）、`madou`（亞洲，關鍵字「麻豆」）
 - `GET /api/recommendations?itemId=&limit=` — 詳情頁關聯推薦
 - `GET /api/preview/:slug` — 只抓影片頁並回傳 `og:image` 縮圖 URL（除錯／第三方用）

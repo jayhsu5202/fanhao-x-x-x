@@ -35,14 +35,6 @@ function formatDurationSec(seconds: unknown): string | null {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-/** Recombee `released_at`：Unix 秒（number／float） */
-function formatReleasedAt(ts: unknown): string | null {
-  if (typeof ts !== "number" || !Number.isFinite(ts) || ts <= 0) return null;
-  const d = new Date(ts * 1000);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
-
 const LIST_CHIPS_MAX = 3;
 
 /** 列表小標：合併 tags、genres、labels（去重），不足再退回 type */
@@ -118,7 +110,6 @@ export default function VideoCard({
           <div className="card-thumb-shade" aria-hidden />
           <div className="card-thumb-badges" aria-hidden>
             {hasChineseSubtitle ? <span className="card-meta-badge card-meta-badge-sub">中字</span> : null}
-            {releasedLabel ? <span className="card-meta-badge card-meta-badge-date">{releasedLabel}</span> : null}
             {durationLabel ? <span className="card-meta-badge card-meta-badge-duration">{durationLabel}</span> : null}
           </div>
           <span className="card-play" aria-hidden>

@@ -42,10 +42,10 @@
 |------|------|
 | `GET /api/search`、`/api/featured`、`/api/browse/*` | 回傳 `recomms` **原樣保留** `id` + `values`（僅依 `id` 去重） |
 | `GET /api/videos/:slug` | **HTML 解析**詳情：`genres`（第 4 格 `text-secondary` 的 `<a>`）、系列、發行商等；**不是** Recombee `values` |
-| `VideoCard` | 標題：`pickTitle(values)`；縮圖角標：`has_chinese_subtitle`（中字）、`released_at`、`duration`；列表小標：**合併** `tags` + `genres` + `labels`（去重，最多 3），全空才用 `type` |
+| `VideoCard` | 標題：`pickTitle(values)`；縮圖角標：`has_chinese_subtitle`（中字）、`duration`；列表小標：**合併** `tags` + `genres` + `labels`（去重，最多 3），全空才用 `type` |
 
 ## 優化方向（已做／可選）
 
 1. **列表標籤**：勿在「有 `tags`」時丟棄 `genres`／`labels`；改為合併去重（前端已調整）。  
-2. **字幕／日期**：列表卡片已顯示 `has_chinese_subtitle`（中字）與 `released_at` 角標；`type` 小圖示仍為可選。  
+2. **字幕**：列表卡片可顯示 `has_chinese_subtitle`（中字）；`released_at`／`type` 小圖示仍為可選。  
 3. **與官網分類頁對齊**：Recombee 與 `/dm35/madou?page=` **不同管線**；要 1:1 列表需另接列表頁抓取，非欄位文件能解。

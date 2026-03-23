@@ -175,13 +175,15 @@ function pickRecomId(data: Record<string, unknown>): string | null {
 }
 
 /**
- * 是否允許前端用同一串 recommId 再請求下一批。
- * 僅在「無法續撈」（無 recommId 或本批已空）時停；不因本批筆數未滿 limit 而提前宣告到底。
+ * 列表是否還可能載到更多。
+ * - 本批有項目 → true（有 recommId 可走 next；首頁無 recommId 時可走 fresh=1）
+ * - 本批空但有 recommId → true（再試 RecommendNextItems）
+ * 僅「本批空且無 recommId」為 false。不因未滿 limit 提早 false。
  */
 function recombeeHasMorePages(rawRecomms: unknown[], _limit: number, recomId: string | null): boolean {
-  if (!recomId) return false;
-  if (!Array.isArray(rawRecomms) || rawRecomms.length === 0) return false;
-  return true;
+  const n = Array.isArray(rawRecomms) ? rawRecomms.length : 0;
+  if (n > 0) return true;
+  return Boolean(recomId);
 }
 
 /** 首頁新串／fresh 時略旋轉，減少與已載入清單重疊（Recombee 文件 rotationRate / rotationTime） */

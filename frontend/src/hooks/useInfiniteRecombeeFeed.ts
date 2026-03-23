@@ -45,7 +45,8 @@ function pickRid(d: RecombeeFeedResponse): string | null {
 function readHasMore(d: RecombeeFeedResponse, _pageSize: number): boolean {
   if (typeof d.hasMore === "boolean") return d.hasMore;
   const len = d.recomms?.length ?? 0;
-  return Boolean(pickRid(d) && len > 0);
+  const rid = pickRid(d);
+  return len > 0 || Boolean(rid);
 }
 
 /**
@@ -200,7 +201,15 @@ export function useInfiniteRecombeeFeed(options: {
           if (emptyBatch || dupOnly || !rid) setCanRecommendNext(false);
           else setCanRecommendNext(true);
         } else {
-          setCanRecommendNext(Boolean(rid));
+          const dupOnly = batch.length > 0 && newUniqueCount === 0;
+          const emptyBatch = batch.length === 0;
+          if (emptyBatch || dupOnly) {
+            hasMoreRef.current = false;
+            setFeedHasMore(false);
+            setCanRecommendNext(false);
+          } else {
+            setCanRecommendNext(Boolean(rid));
+          }
         }
       } catch (e) {
         if (gen === feedGenRef.current && itemsRef.current.length > 0) {
