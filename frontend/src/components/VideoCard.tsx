@@ -56,7 +56,7 @@ export default function VideoCard({
   const durationLabel = formatDurationSec(vals?.duration);
   const hasChineseSubtitle = vals?.has_chinese_subtitle === true;
   const uncensoredBadge = pickUncensoredBadgeLabel(vals);
-  const chips = pickListChips(vals, LIST_CHIPS_MAX);
+  const chips = pickListChips(vals, LIST_CHIPS_MAX).slice(0, 2);
   const thumbSrc = thumbnailUrlForSlug(item.id, locale);
   const [thumbOk, setThumbOk] = useState(true);
 
@@ -106,20 +106,22 @@ export default function VideoCard({
               {title}
             </p>
           </Link>
-          <Link to={videoTo} state={{ detailPeek: item }} className="card-slug-link">
-            <div className="slug">{item.id}</div>
-          </Link>
-          <div className={`card-chip-row${chips.length === 0 ? " card-chip-row--empty" : ""}`} aria-hidden={chips.length === 0}>
-            {chips.map((c, i) => (
-              <Link
-                key={`${i}-${c}`}
-                to={`/search?q=${encodeURIComponent(c)}`}
-                className="card-chip card-chip-link"
-                title={`搜尋：${c}`}
-              >
-                {c}
-              </Link>
-            ))}
+          <div className="card-meta-row">
+            <Link to={videoTo} state={{ detailPeek: item }} className="card-slug-link">
+              <div className="slug">{item.id}</div>
+            </Link>
+            <div className={`card-chip-row${chips.length === 0 ? " card-chip-row--empty" : ""}`} aria-hidden={chips.length === 0}>
+              {chips.map((c, i) => (
+                <Link
+                  key={`${i}-${c}`}
+                  to={`/search?q=${encodeURIComponent(c)}`}
+                  className="card-chip card-chip-link"
+                  title={`搜尋：${c}`}
+                >
+                  {c}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </div>
