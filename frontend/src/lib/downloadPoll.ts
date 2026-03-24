@@ -4,11 +4,15 @@ export type DownloadQueueInfo = {
   concurrency: number;
   pendingJobs: number;
   runningJobs: number;
+  verifyingJobs?: number;
 };
 
 export type JobStatusResponse = {
   id: string;
   status: string;
+  progressPhase?: "pending" | "running" | "verifying" | "done" | "error";
+  fileReady?: boolean;
+  fileSizeBytes?: string;
   slug: string;
   filename?: string;
   message?: string;
@@ -33,7 +37,7 @@ export async function pollDownloadUntilTerminal(
     if (options.signal.aborted) return "aborted";
     const st = await apiGet<JobStatusResponse>(`/api/downloads/${jobId}`);
     options.onStatus(st);
-    if (st.status === "done") return "done";
+    if (st.status === "done" && st.fileReady === true) return "done";
     if (st.status === "error") return "error";
     await new Promise((r) => setTimeout(r, pollMs));
   }

@@ -8,7 +8,29 @@ import { fetchVideoPage, parseVideoHtml } from "./missav-page.js";
 import { upstreamFetch } from "./upstream-fetch.js";
 
 const execFileAsync = promisify(execFile);
-const resolvedFfmpegPath = config.ffmpegPath === "ffmpeg" ? ffmpegInstaller.path : config.ffmpegPath;
+const FFMPEG_ERROR_TAIL_MAX = 1200;
+
+export type FfmpegBinarySource = "configured" | "system" | "installer";
+
+export type FfmpegResolution = {
+  path: string;
+  source: FfmpegBinarySource;
+};
+
+export type DownloadExecutionResult = {
+  ok: boolean;
+  exitCode: number | null;
+  stderrTail: string;
+  ffmpegSummary: string;
+  outputExists: boolean;
+  outputSizeBytes: bigint;
+  ffmpegPath: string;
+  ffmpegSource: FfmpegBinarySource;
+  playlistUrl: string;
+  error?: string;
+};
+
+let ffmpegResolutionPromise: Promise<FfmpegResolution> | null = null;
 
 type Variant = {
   bandwidth: number;
@@ -95,16 +117,55 @@ function buildHeaderBlob(pageUrl: string): string {
     .join("\r\n");
 }
 
-export async function checkFfmpegAvailable(): Promise<{ available: boolean; version: string | null }> {
+function summarizeFfmpegStderr(stderr: string, fallback: string): string {
+  const lines = stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const picked = lines.find((line) => /error|failed|invalid|unable|timed?\s*out|404|403/i.test(line)) ?? lines.at(-1) ?? fallback;
+  return picked.length > 240 ? `${picked.slice(0, 240)}…` : picked;
+}
+
+async function probeFfmpegCandidate(pathValue: string, source: FfmpegBinarySource): Promise<FfmpegResolution | null> {
   try {
-    const { stdout } = await execFileAsync(resolvedFfmpegPath, ["-version"], {
+    await execFileAsync(pathValue, ["-version"], {
+      timeout: 5_000,
+      maxBuffer: 1024 * 128,
+    });
+    return { path: pathValue, source };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveFfmpegBinary(): Promise<FfmpegResolution> {
+  if (ffmpegResolutionPromise) return ffmpegResolutionPromise;
+  ffmpegResolutionPromise = (async () => {
+    if (config.ffmpegPath !== "ffmpeg") {
+      const configured = await probeFfmpegCandidate(config.ffmpegPath, "configured");
+      if (configured) return configured;
+      throw new Error(`configured ffmpeg not available: ${config.ffmpegPath}`);
+    }
+    const systemFfmpeg = await probeFfmpegCandidate("ffmpeg", "system");
+    if (systemFfmpeg) return systemFfmpeg;
+    const bundled = await probeFfmpegCandidate(ffmpegInstaller.path, "installer");
+    if (bundled) return bundled;
+    throw new Error("ffmpeg unavailable");
+  })();
+  return ffmpegResolutionPromise;
+}
+
+export async function checkFfmpegAvailable(): Promise<{ available: boolean; version: string | null; path: string | null; source: FfmpegBinarySource | null }> {
+  try {
+    const resolved = await resolveFfmpegBinary();
+    const { stdout } = await execFileAsync(resolved.path, ["-version"], {
       timeout: 5_000,
       maxBuffer: 1024 * 128,
     });
     const firstLine = stdout.split(/\r?\n/).find(Boolean) ?? null;
-    return { available: true, version: firstLine };
+    return { available: true, version: firstLine, path: resolved.path, source: resolved.source };
   } catch {
-    return { available: false, version: null };
+    return { available: false, version: null, path: null, source: null };
   }
 }
 
@@ -112,18 +173,19 @@ export async function runDownloadJob(payload: {
   pageUrl: string;
   outputPath: string;
   quality: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<DownloadExecutionResult> {
   const playlistUrl = await resolvePlaylistUrl(payload.pageUrl, payload.quality);
   const headers = buildHeaderBlob(payload.pageUrl);
+  const ffmpeg = await resolveFfmpegBinary();
 
   return new Promise((resolve) => {
     const child = spawn(
-      resolvedFfmpegPath,
+      ffmpeg.path,
       [
         "-nostdin",
         "-y",
         "-loglevel",
-        "error",
+        "warning",
         "-user_agent",
         buildCdnMediaHeaders(payload.pageUrl, "media")["User-Agent"] || "",
         "-headers",
@@ -150,17 +212,42 @@ export async function runDownloadJob(payload: {
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
+      if (stderr.length > FFMPEG_ERROR_TAIL_MAX * 2) {
+        stderr = stderr.slice(-FFMPEG_ERROR_TAIL_MAX * 2);
+      }
     });
-    child.on("error", (err) => {
-      resolve({ ok: false, error: err.message });
+    child.on("error", async (err) => {
+      const summary = summarizeFfmpegStderr(stderr, err.message);
+      const stat = await fs.stat(payload.outputPath).catch(() => null);
+      resolve({
+        ok: false,
+        exitCode: null,
+        stderrTail: stderr.trim().slice(-FFMPEG_ERROR_TAIL_MAX),
+        ffmpegSummary: summary,
+        outputExists: Boolean(stat?.isFile()),
+        outputSizeBytes: BigInt(stat?.size ?? 0),
+        ffmpegPath: ffmpeg.path,
+        ffmpegSource: ffmpeg.source,
+        playlistUrl,
+        error: err.message,
+      });
     });
     child.on("close", async (code) => {
-      if (code === 0) {
-        resolve({ ok: true });
-        return;
-      }
-      await fs.rm(payload.outputPath, { force: true }).catch(() => undefined);
-      resolve({ ok: false, error: stderr.trim().slice(-500) || `ffmpeg exited with code ${code ?? "?"}` });
+      const stat = await fs.stat(payload.outputPath).catch(() => null);
+      const stderrTail = stderr.trim().slice(-FFMPEG_ERROR_TAIL_MAX);
+      const summary = summarizeFfmpegStderr(stderrTail, code === 0 ? "ffmpeg finished" : `ffmpeg exited with code ${code ?? "?"}`);
+      resolve({
+        ok: code === 0,
+        exitCode: code,
+        stderrTail,
+        ffmpegSummary: summary,
+        outputExists: Boolean(stat?.isFile()),
+        outputSizeBytes: BigInt(stat?.size ?? 0),
+        ffmpegPath: ffmpeg.path,
+        ffmpegSource: ffmpeg.source,
+        playlistUrl,
+        error: code === 0 ? undefined : stderrTail || `ffmpeg exited with code ${code ?? "?"}`,
+      });
     });
   });
 }

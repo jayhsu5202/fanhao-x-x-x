@@ -899,6 +899,9 @@ app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
       active: false,
       jobId: done.id,
       status: "done" as const,
+      progressPhase: "done" as const,
+      fileReady: true,
+      fileSizeBytes: done.fileSizeBytes?.toString() ?? null,
       filename: done.filename ?? null,
     };
   }
@@ -909,10 +912,22 @@ app.get("/api/downloads/by-slug/:slug", async (request, reply) => {
       active: true,
       jobId: active.id,
       status: active.status,
+      progressPhase: active.status,
+      fileReady: false,
+      fileSizeBytes: active.fileSizeBytes?.toString() ?? null,
       filename: null,
     };
   }
-  return { ready: false, active: false, jobId: null, status: null, filename: null };
+  return {
+    ready: false,
+    active: false,
+    jobId: null,
+    status: null,
+    progressPhase: null,
+    fileReady: false,
+    fileSizeBytes: null,
+    filename: null,
+  };
 });
 
 app.get("/api/favorites", async () => {
@@ -968,9 +983,13 @@ app.get("/api/downloads/:jobId", async (request, reply) => {
     return sendError(reply, 404, "NOT_FOUND", "找不到下載工作");
   }
   const queue = await getDownloadQueueStats();
+  const fileReady = job.status === "done" && Boolean(job.outputPath) && typeof job.fileSizeBytes === "bigint" && job.fileSizeBytes > BigInt(0);
   return {
     id: job.id,
     status: job.status,
+    progressPhase: job.status,
+    fileReady,
+    fileSizeBytes: job.fileSizeBytes?.toString(),
     slug: job.slug,
     filename: job.filename,
     message: job.message,
@@ -987,10 +1006,20 @@ app.get("/api/downloads/:jobId/file", async (request, reply) => {
   if (job.status !== "done" || !job.outputPath) {
     return sendError(reply, 400, "NOT_READY", "檔案尚未就緒");
   }
+  let stat;
   try {
-    await fs.access(job.outputPath);
+    stat = await fs.stat(job.outputPath);
   } catch {
     return sendError(reply, 404, "FILE_MISSING", "檔案不存在");
+  }
+  if (!stat.isFile()) {
+    return sendError(reply, 409, "FILE_INVALID", "下載輸出不是有效檔案");
+  }
+  if (job.fileSizeBytes != null && BigInt(stat.size) !== job.fileSizeBytes) {
+    return sendError(reply, 409, "FILE_INVALID", "下載檔案狀態與實體檔案不一致");
+  }
+  if (stat.size <= 0) {
+    return sendError(reply, 409, "FILE_INVALID", "下載檔案大小無效");
   }
   const name = job.filename || "video.mp4";
   const stream = createReadStream(job.outputPath);

@@ -9,7 +9,7 @@ import { runDownloadJob } from "./ffmpeg-download.js";
 import { prisma } from "./prisma.js";
 import type { DownloadJob as DbJob } from "@prisma/client";
 
-export type JobStatus = "pending" | "running" | "done" | "error";
+export type JobStatus = "pending" | "running" | "verifying" | "done" | "error";
 
 export type DownloadJob = {
   id: string;
@@ -19,6 +19,12 @@ export type DownloadJob = {
   message?: string;
   outputPath?: string;
   filename?: string;
+  fileSizeBytes?: bigint;
+  ffmpegExitCode?: number;
+  ffmpegSummary?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  verifiedAt?: number;
   createdAt: number;
 };
 
@@ -33,9 +39,17 @@ function rowToJob(row: DbJob): DownloadJob {
     message: row.message ?? undefined,
     outputPath: row.outputPath ?? undefined,
     filename: row.filename ?? undefined,
+    fileSizeBytes: row.fileSizeBytes ?? undefined,
+    ffmpegExitCode: row.ffmpegExitCode ?? undefined,
+    ffmpegSummary: row.ffmpegSummary ?? undefined,
+    startedAt: row.startedAt?.getTime(),
+    finishedAt: row.finishedAt?.getTime(),
+    verifiedAt: row.verifiedAt?.getTime(),
     createdAt: row.createdAt.getTime(),
   };
 }
+
+const MIN_VALID_DOWNLOAD_BYTES = 256 * 1024;
 
 function outputFileReadable(outputPath: string | undefined | null): boolean {
   if (!outputPath) return false;
@@ -47,11 +61,27 @@ function outputFileReadable(outputPath: string | undefined | null): boolean {
   }
 }
 
+async function statReadableOutput(outputPath: string | undefined | null): Promise<{ ok: boolean; size: bigint; reason?: string }> {
+  if (!outputPath) return { ok: false, size: BigInt(0), reason: "缺少輸出檔路徑" };
+  if (!outputFileReadable(outputPath)) return { ok: false, size: BigInt(0), reason: "輸出檔不存在或不可讀" };
+  try {
+    const st = await fs.stat(outputPath);
+    if (!st.isFile()) return { ok: false, size: BigInt(0), reason: "輸出路徑不是檔案" };
+    const size = BigInt(st.size);
+    if (size < BigInt(MIN_VALID_DOWNLOAD_BYTES)) {
+      return { ok: false, size, reason: `輸出檔過小（${st.size} bytes）` };
+    }
+    return { ok: true, size };
+  } catch {
+    return { ok: false, size: BigInt(0), reason: "無法讀取輸出檔資訊" };
+  }
+}
+
 /** 服務啟動時：先前未結束的佇列／下載視為已中斷（子程序已不存在） */
 export async function markAbortedJobsAfterRestart(): Promise<void> {
   await prisma.downloadJob.updateMany({
-    where: { status: { in: ["pending", "running"] } },
-    data: { status: "error", message: "服務重啟，請重新下載" },
+    where: { status: { in: ["pending", "running", "verifying"] } },
+    data: { status: "error", message: "服務重啟，請重新下載", finishedAt: new Date() },
   });
 }
 
@@ -65,11 +95,12 @@ export async function findCompletedJobForSlug(
   quality: string
 ): Promise<DownloadJob | undefined> {
   const rows = await prisma.downloadJob.findMany({
-    where: { slug, quality, status: "done" },
+    where: { slug, quality, status: "done", verifiedAt: { not: null } },
     orderBy: { createdAt: "desc" },
   });
   for (const row of rows) {
-    if (outputFileReadable(row.outputPath)) return rowToJob(row);
+    const stat = await statReadableOutput(row.outputPath);
+    if (stat.ok) return rowToJob(row);
   }
   return undefined;
 }
@@ -79,7 +110,7 @@ export async function findActiveJobForSlug(
   quality: string
 ): Promise<DownloadJob | undefined> {
   const row = await prisma.downloadJob.findFirst({
-    where: { slug, quality, status: { in: ["pending", "running"] } },
+    where: { slug, quality, status: { in: ["pending", "running", "verifying"] } },
     orderBy: { createdAt: "desc" },
   });
   return row ? rowToJob(row) : undefined;
@@ -89,15 +120,18 @@ export async function getDownloadQueueStats(): Promise<{
   concurrency: number;
   pendingJobs: number;
   runningJobs: number;
+  verifyingJobs: number;
 }> {
-  const [pendingJobs, runningJobs] = await Promise.all([
+  const [pendingJobs, runningJobs, verifyingJobs] = await Promise.all([
     prisma.downloadJob.count({ where: { status: "pending" } }),
     prisma.downloadJob.count({ where: { status: "running" } }),
+    prisma.downloadJob.count({ where: { status: "verifying" } }),
   ]);
   return {
     concurrency: config.downloadQueueConcurrency,
     pendingJobs,
     runningJobs,
+    verifyingJobs,
   };
 }
 
@@ -108,7 +142,7 @@ export async function createDownloadJob(
 ): Promise<DownloadJob> {
   const id = randomUUID();
   await prisma.downloadJob.create({
-    data: { id, slug, quality, status: "pending" },
+    data: { id, slug, quality, status: "pending", message: "等待下載佇列" },
   });
 
   void queue.add(async () => {
@@ -117,35 +151,82 @@ export async function createDownloadJob(
     await fs.mkdir(dir, { recursive: true });
     const outFile = path.join(dir, "video.mp4");
     const filename = `${slug.replace(/[^a-zA-Z0-9._-]+/g, "_")}.mp4`;
+    const startedAt = new Date();
 
     await prisma.downloadJob.update({
       where: { id },
       data: {
         status: "running",
+        message: "ffmpeg 下載中",
         outputPath: outFile,
         filename,
+        startedAt,
       },
     });
 
     const base = (missavPageBase ?? config.missavBaseUrl).replace(/\/$/, "");
     const pageUrl = `${base}/${slug}`;
-    const result = await runDownloadJob({
-      pageUrl,
-      outputPath: outFile,
-      quality,
-    });
 
-    if (result.ok) {
+    try {
+      const result = await runDownloadJob({
+        pageUrl,
+        outputPath: outFile,
+        quality,
+      });
+      const finishedAt = new Date();
+
       await prisma.downloadJob.update({
         where: { id },
-        data: { status: "done", message: "完成" },
+        data: {
+          status: "verifying",
+          message: "驗證下載檔案中",
+          ffmpegExitCode: result.exitCode,
+          ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+          finishedAt,
+        },
       });
-    } else {
+
+      const stat = await statReadableOutput(outFile);
+      if (result.ok && stat.ok) {
+        await prisma.downloadJob.update({
+          where: { id },
+          data: {
+            status: "done",
+            message: "完成",
+            fileSizeBytes: stat.size,
+            ffmpegExitCode: result.exitCode,
+            ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+            finishedAt,
+            verifiedAt: new Date(),
+          },
+        });
+        return;
+      }
+
+      await fs.rm(outFile, { force: true }).catch(() => undefined);
+      const failureMessage = result.ok
+        ? (stat.reason ?? "下載檔驗證失敗")
+        : (result.error || result.ffmpegSummary || "下載失敗");
       await prisma.downloadJob.update({
         where: { id },
         data: {
           status: "error",
-          message: result.error?.slice(0, 500) || "下載失敗",
+          message: failureMessage.slice(0, 500),
+          fileSizeBytes: stat.size,
+          ffmpegExitCode: result.exitCode,
+          ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+          finishedAt,
+          verifiedAt: null,
+        },
+      });
+    } catch (error) {
+      await fs.rm(outFile, { force: true }).catch(() => undefined);
+      await prisma.downloadJob.update({
+        where: { id },
+        data: {
+          status: "error",
+          message: (error instanceof Error ? error.message : "下載失敗").slice(0, 500),
+          finishedAt: new Date(),
         },
       });
     }

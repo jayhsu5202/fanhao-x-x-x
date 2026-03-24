@@ -37,11 +37,16 @@ type VideoDetail = {
 
 type JobRes = { jobId: string; reused?: boolean };
 
+type DownloadPhase = "pending" | "running" | "verifying";
+
 type BySlugRes = {
   ready: boolean;
   active: boolean;
   jobId: string | null;
   status: string | null;
+  progressPhase?: DownloadPhase | "done" | "error" | null;
+  fileReady?: boolean;
+  fileSizeBytes?: string | null;
   filename: string | null;
 };
 
@@ -56,15 +61,22 @@ type DownloadUi =
   | {
       mode: "working";
       jobId: string;
-      serverStatus: "pending" | "running";
+      serverStatus: DownloadPhase;
       startedAt: number;
       queue?: DownloadQueueInfo;
     }
   | { mode: "ready"; jobId: string; filename?: string }
   | { mode: "error"; message: string };
 
-function downloadStatusLine(s: "pending" | "running"): string {
+function toWorkingPhase(status: string | null | undefined): DownloadPhase {
+  if (status === "running") return "running";
+  if (status === "verifying") return "verifying";
+  return "pending";
+}
+
+function downloadStatusLine(s: DownloadPhase): string {
   if (s === "pending") return "等待伺服器佇列處理…";
+  if (s === "verifying") return "正在驗證 MP4 完整性，完成前不會開放下載…";
   return "正在下載並合併為 MP4（後端未提供百分比，請耐心等候）…";
 }
 
@@ -308,18 +320,18 @@ export default function VideoPage() {
           setDlUi({
             mode: "working",
             jobId: by.jobId,
-            serverStatus: by.status === "running" ? "running" : "pending",
+            serverStatus: toWorkingPhase(by.progressPhase ?? by.status),
             startedAt,
           });
           const result = await pollDownloadUntilTerminal(by.jobId, {
             signal: ac.signal,
             onStatus: (st) => {
               if (ac.signal.aborted) return;
-              if (st.status === "pending" || st.status === "running") {
+              if (st.status === "pending" || st.status === "running" || st.status === "verifying") {
                 setDlUi({
                   mode: "working",
                   jobId: by.jobId!,
-                  serverStatus: st.status === "running" ? "running" : "pending",
+                  serverStatus: toWorkingPhase(st.progressPhase ?? st.status),
                   startedAt,
                   queue: st.queue,
                 });
@@ -371,7 +383,7 @@ export default function VideoPage() {
           clearActiveDownload(slug);
           return;
         }
-        if (first.status === "done") {
+        if (first.status === "done" && first.fileReady === true) {
           clearActiveDownload(slug);
           setDlUi({
             mode: "ready",
@@ -385,7 +397,7 @@ export default function VideoPage() {
           setDlUi({ mode: "error", message: first.message || "下載失敗" });
           return;
         }
-        if (first.status !== "pending" && first.status !== "running") {
+        if (first.status !== "pending" && first.status !== "running" && first.status !== "verifying") {
           clearActiveDownload(slug);
           return;
         }
@@ -393,7 +405,7 @@ export default function VideoPage() {
         setDlUi({
           mode: "working",
           jobId: saved.jobId,
-          serverStatus: first.status === "running" ? "running" : "pending",
+          serverStatus: toWorkingPhase(first.progressPhase ?? first.status),
           startedAt: saved.startedAt,
           queue: first.queue,
         });
@@ -401,11 +413,11 @@ export default function VideoPage() {
           signal: ac.signal,
           onStatus: (st) => {
             if (ac.signal.aborted) return;
-            if (st.status === "pending" || st.status === "running") {
+            if (st.status === "pending" || st.status === "running" || st.status === "verifying") {
               setDlUi({
                 mode: "working",
                 jobId: saved.jobId,
-                serverStatus: st.status === "running" ? "running" : "pending",
+                serverStatus: toWorkingPhase(st.progressPhase ?? st.status),
                 startedAt: saved.startedAt,
                 queue: st.queue,
               });
@@ -485,8 +497,8 @@ export default function VideoPage() {
         signal: ac.signal,
         onStatus: (st) => {
           if (ac.signal.aborted) return;
-          if (st.status === "pending" || st.status === "running") {
-            const serverStatus = st.status === "running" ? "running" : "pending";
+          if (st.status === "pending" || st.status === "running" || st.status === "verifying") {
+            const serverStatus = toWorkingPhase(st.progressPhase ?? st.status);
             setDlUi({ mode: "working", jobId: res.jobId, serverStatus, startedAt, queue: st.queue });
           }
         },
@@ -750,7 +762,7 @@ export default function VideoPage() {
                 )}
                 {dlUi.queue ? (
                   <p className="dl-status-meta">
-                    佇列：{dlUi.queue.runningJobs} 執行中／上限 {dlUi.queue.concurrency}，{dlUi.queue.pendingJobs} 筆等待中
+                    佇列：{dlUi.queue.runningJobs} 執行中／驗證中 {dlUi.queue.verifyingJobs ?? 0}／上限 {dlUi.queue.concurrency}，{dlUi.queue.pendingJobs} 筆等待中
                   </p>
                 ) : null}
                 <div className="download-progress-wrap" aria-hidden>

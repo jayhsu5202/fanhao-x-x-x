@@ -13,10 +13,23 @@ export async function ensureSqliteSchema(): Promise<void> {
       "message" TEXT,
       "outputPath" TEXT,
       "filename" TEXT,
+      "fileSizeBytes" BIGINT,
+      "ffmpegExitCode" INTEGER,
+      "ffmpegSummary" TEXT,
+      "startedAt" DATETIME,
+      "finishedAt" DATETIME,
+      "verifiedAt" DATETIME,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "fileSizeBytes" BIGINT`).catch(() => undefined);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "ffmpegExitCode" INTEGER`).catch(() => undefined);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "ffmpegSummary" TEXT`).catch(() => undefined);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "startedAt" DATETIME`).catch(() => undefined);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "finishedAt" DATETIME`).catch(() => undefined);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "DownloadJob" ADD COLUMN "verifiedAt" DATETIME`).catch(() => undefined);
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Favorite" (
