@@ -38,6 +38,17 @@ function pickUncensoredBadgeLabel(v: Record<string, unknown> | undefined): strin
   return null;
 }
 
+/**
+ * 從 Recombee catalog values 取出有效的 thumbnail_url。
+ * 必須是 https:// 開頭的絕對 URL，否則回傳 null（fallback 到後端代理）。
+ */
+function pickCatalogThumbUrl(v: Record<string, unknown> | undefined): string | null {
+  if (!v) return null;
+  const u = v.thumbnail_url;
+  if (typeof u === "string" && u.startsWith("https://")) return u;
+  return null;
+}
+
 export default function VideoCard({
   item,
   showFavoriteHeart = false,
@@ -57,12 +68,18 @@ export default function VideoCard({
   const hasChineseSubtitle = vals?.has_chinese_subtitle === true;
   const uncensoredBadge = pickUncensoredBadgeLabel(vals);
   const chips = pickListChips(vals, LIST_CHIPS_MAX).slice(0, 2);
-  const thumbSrc = thumbnailUrlForSlug(item.id, locale);
+
+  /**
+   * 優先使用 Recombee catalog 中的 `thumbnail_url`（直連 CDN，不走後端代理）。
+   * 若 catalog 無此欄位或非 https URL，fallback 到 /api/thumbnail/:slug。
+   */
+  const catalogThumbUrl = pickCatalogThumbUrl(vals);
+  const thumbSrc = catalogThumbUrl ?? thumbnailUrlForSlug(item.id, locale);
   const [thumbOk, setThumbOk] = useState(true);
 
   useEffect(() => {
     setThumbOk(true);
-  }, [locale, item.id]);
+  }, [thumbSrc]);
 
   const videoTo = `/v/${encodeURIComponent(item.id)}`;
 
@@ -76,7 +93,26 @@ export default function VideoCard({
                 key={thumbSrc}
                 src={thumbSrc}
                 alt=""
-                loading="lazy"
+                loading="eager"
+                decoding="async"
+                className="card-thumb-img"
+                onError={() => {
+                  // 若 catalog URL 失效，降級到後端代理
+                  if (catalogThumbUrl && thumbSrc === catalogThumbUrl) {
+                    // 強制觸發 re-render 改用 fallback URL
+                    setThumbOk(false);
+                  } else {
+                    setThumbOk(false);
+                  }
+                }}
+              />
+            ) : catalogThumbUrl ? (
+              // catalog URL 失效時，降級到後端代理
+              <img
+                key={`fallback-${item.id}-${locale}`}
+                src={thumbnailUrlForSlug(item.id, locale)}
+                alt=""
+                loading="eager"
                 decoding="async"
                 className="card-thumb-img"
                 onError={() => setThumbOk(false)}
