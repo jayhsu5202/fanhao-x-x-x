@@ -192,12 +192,10 @@ code.inline-code {
 
 .nav-mega-panel {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: calc(100% - 1px);
-  min-width: min(360px, 92vw);
-  max-width: min(92vw, 620px);
-  padding: 0.75rem 0.85rem 0.95rem;
+  left: 0;
+  top: calc(100% + 0.4rem);
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.7rem 0.75rem 0.8rem;
   background: rgba(18, 20, 30, 0.97);
   border: 1px solid var(--stroke);
   border-radius: 14px;
@@ -207,6 +205,11 @@ code.inline-code {
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.14s ease, visibility 0.14s ease;
+}
+
+.nav-mega-wrap--align-end .nav-mega-panel {
+  left: auto;
+  right: 0;
 }
 
 .nav-mega-wrap.is-open .nav-mega-panel,
@@ -221,9 +224,9 @@ code.inline-code {
   font-size: clamp(0.95rem, 0.3vw + 0.88rem, 1.05rem);
   font-weight: 600;
   color: var(--accent);
-  padding: 0.42rem 0.45rem 0.6rem;
+  padding: 0.45rem 0.55rem 0.65rem;
   border-bottom: 1px solid var(--stroke);
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.4rem;
 }
 
 .nav-mega-all:hover {
@@ -231,23 +234,26 @@ code.inline-code {
 }
 
 .nav-mega-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(10rem, 1fr));
-  gap: 0.12rem 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
 }
 
 .nav-mega-links a {
-  font-size: clamp(0.98rem, 0.35vw + 0.88rem, 1.06rem);
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+  font-size: clamp(0.98rem, 0.35vw + 0.88rem, 1.04rem);
   color: var(--muted);
-  padding: 0.48rem 0.5rem;
-  border-radius: 9px;
-  line-height: 1.45;
+  padding: 0.55rem 0.6rem;
+  border-radius: 10px;
+  line-height: 1.4;
   min-width: 0;
 }
 
 .nav-mega-links a:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* 語系（須高於 mega menu / sticky header，避免下拉被遮住） */

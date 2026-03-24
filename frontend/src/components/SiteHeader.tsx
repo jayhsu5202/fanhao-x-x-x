@@ -45,10 +45,12 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
           <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/favorites">
             最愛
           </NavLink>
-          {NAV_MENU.map((m) => (
+          {NAV_MENU.map((m, index) => (
             <div
               key={m.key}
-              className={`nav-mega-wrap${desktopOpenKey === m.key ? " is-open" : ""}`}
+              className={`nav-mega-wrap${desktopOpenKey === m.key ? " is-open" : ""}${
+                index >= NAV_MENU.length - 2 ? " nav-mega-wrap--align-end" : ""
+              }`}
               onMouseEnter={() => setDesktopOpenKey(m.key)}
               onMouseLeave={() => setDesktopOpenKey((prev) => (prev === m.key ? null : prev))}
             >
