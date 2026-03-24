@@ -18,6 +18,7 @@ import { hlsConfigProxiedStream } from "../lib/hlsPlayerConfig";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
 import { pickExtraTagsForDetail, pickGenresForDetail, pickTitle } from "../lib/recombeeDisplay";
+import { recordWatch } from "../lib/watchHistory";
 
 type VideoDetail = {
   slug: string;
@@ -173,7 +174,10 @@ export default function VideoPage() {
     setRelated(null);
     apiGet<VideoDetail>(`/api/videos/${encodeURIComponent(slug)}`)
       .then((d) => {
-        if (!cancelled) setData(d);
+        if (!cancelled) {
+          setData(d);
+          recordWatch(slug, d.title ?? null);
+        }
       })
       .catch((e) => {
         if (!cancelled) setErr(e instanceof Error ? e.message : "載入失敗");

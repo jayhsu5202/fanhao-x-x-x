@@ -69,6 +69,9 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
           <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/favorites">
             最愛
           </NavLink>
+          <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/watch-history">
+            觀看記錄
+          </NavLink>
           {NAV_MENU.map((m, index) => (
             <div
               key={m.key}
@@ -129,6 +132,13 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
               onClick={() => setOpen(false)}
             >
               我的最愛
+            </NavLink>
+            <NavLink
+              className={({ isActive }) => `site-nav-panel-link${isActive ? " is-active" : ""}`}
+              to="/watch-history"
+              onClick={() => setOpen(false)}
+            >
+              觀看記錄
             </NavLink>
 
             <p className="site-nav-mobile-divider-label">影片分類</p>

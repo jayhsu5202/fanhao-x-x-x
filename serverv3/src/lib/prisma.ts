@@ -55,4 +55,5 @@ export async function ensureSqliteSchema(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "DownloadJob_status_idx" ON "DownloadJob"("status")`
   );
+
 }

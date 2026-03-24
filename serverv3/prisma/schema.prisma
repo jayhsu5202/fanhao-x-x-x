@@ -34,3 +34,4 @@ model Favorite {
   title     String?
   createdAt DateTime @default(now())
 }
+
