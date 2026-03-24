@@ -644,8 +644,15 @@ export default function VideoPage() {
           <div className="detail-yt-main">
             <div className="detail-player-stage">
               <div className="player-wrap player-fanhao player-elevated player-wrap--clickplay">
-                <video ref={videoRef} controls playsInline poster={posterUrl} preload="none" />
-                {streamReady && !playbackStarted ? (
+                <video
+                  ref={videoRef}
+                  controls={playbackStarted}
+                  playsInline
+                  poster={posterUrl}
+                  preload="none"
+                  style={{ display: playbackStarted ? "block" : "none" }}
+                />
+                {!playbackStarted ? (
                   <button
                     type="button"
                     className="player-start-overlay"
@@ -653,24 +660,28 @@ export default function VideoPage() {
                       const el = videoRef.current;
                       const raw = data?.m3u8_play_url;
                       if (!el || !raw) return;
+                      el.style.display = "block";
                       attachStreamAndPlayFromUserGesture(el, resolveMediaUrl(raw));
                       setPlaybackStarted(true);
                     }}
                     aria-label="開始播放影片"
+                    style={{
+                      backgroundImage: posterUrl ? `url(${posterUrl})` : undefined,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
                   >
-                    <span className="player-start-icon" aria-hidden>
-                      <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
-                        <circle cx="32" cy="32" r="30" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.35)" />
-                        <path d="M26 20L46 32L26 44V20Z" fill="white" />
-                      </svg>
-                    </span>
-                    <span className="player-start-label">播放</span>
+                    {streamReady ? (
+                      <span className="player-start-icon" aria-hidden>
+                        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                          <circle cx="32" cy="32" r="31" fill="rgba(0,0,0,0.5)" />
+                          <path d="M25 18L50 32L25 46V18Z" fill="white" />
+                        </svg>
+                      </span>
+                    ) : (
+                      <span className="player-start-label">取得播放來源中…</span>
+                    )}
                   </button>
-                ) : null}
-                {!streamReady ? (
-                  <div className="player-start-overlay" style={{ pointerEvents: "none" }} aria-live="polite">
-                    <span className="player-start-label">取得播放來源中…</span>
-                  </div>
                 ) : null}
                 {playerErr ? (
                   <div className="player-error-banner" role="alert">

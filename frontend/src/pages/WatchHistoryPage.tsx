@@ -61,7 +61,7 @@ export default function WatchHistoryPage() {
             <button
               type="button"
               className="btn-secondary-fanhao"
-              style={{ marginLeft: "auto" }}
+              style={{ marginLeft: "auto", width: "auto", marginTop: 0 }}
               onClick={handleClear}
             >
               清空全部

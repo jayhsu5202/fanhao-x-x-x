@@ -174,7 +174,7 @@ export function useInfiniteRecombeeFeed(options: {
       setLoadingMore(true);
       let fetchOk = false;
       try {
-        const useNext = canNextRef.current && recommIdRef.current;
+        const useNext = !!(canNextRef.current && recommIdRef.current);
         const url = getMoreUrlRef.current({
           useNext,
           recommId: recommIdRef.current,

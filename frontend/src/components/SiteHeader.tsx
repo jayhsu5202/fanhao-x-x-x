@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { NAV_MENU } from "../constants/navCategories";
 import LanguageSwitcher from "./LanguageSwitcher";
+import QuickSearchModal from "./QuickSearchModal";
 
 type Tone = "default" | "detail";
 
@@ -13,9 +14,17 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
   const [open, setOpen] = useState(false);
   const [desktopOpenKey, setDesktopOpenKey] = useState<string | null>(null);
   const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const menuId = useId();
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* unmount 時清除懸掛的 timer，避免 state 更新在已卸載元件上執行 */
+  useEffect(() => {
+    return () => {
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -44,18 +53,32 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  /* 桌面版：滑鼠離開後短暫延遲再關閉，避免跨 mega-wrap 移動時閃爍 */
+  /* 桌面版：滑鼠 / 鍵盤焦點統一由 JS 管理，避免 :focus-within 與 is-open 重疊 */
   const handleMegaEnter = (key: string) => {
     if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = null;
     setDesktopOpenKey(key);
   };
   const handleMegaLeave = () => {
-    leaveTimerRef.current = setTimeout(() => setDesktopOpenKey(null), 120);
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => setDesktopOpenKey(null), 150);
+  };
+  /* 鍵盤：焦點進入時開啟，離開整個 wrap 時關閉（取代 CSS :focus-within） */
+  const handleMegaFocusIn = (key: string) => {
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = null;
+    setDesktopOpenKey(key);
+  };
+  const handleMegaFocusOut = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    leaveTimerRef.current = setTimeout(() => setDesktopOpenKey(null), 150);
   };
 
   const shellClass = `site-header ${tone === "detail" ? "site-header--detail" : ""}`;
 
   return (
+    <>
     <header className={shellClass}>
       <div className="site-header-bar">
         <Link className={`brand ${tone === "detail" ? "brand-sm" : ""}`} to="/">
@@ -72,6 +95,9 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
           <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/watch-history">
             觀看記錄
           </NavLink>
+          <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/genres">
+            類型玩法
+          </NavLink>
           {NAV_MENU.map((m, index) => (
             <div
               key={m.key}
@@ -80,6 +106,8 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
               }`}
               onMouseEnter={() => handleMegaEnter(m.key)}
               onMouseLeave={handleMegaLeave}
+              onFocusCapture={() => handleMegaFocusIn(m.key)}
+              onBlurCapture={handleMegaFocusOut}
             >
               <NavLink className={({ isActive }) => navLinkClass(isActive)} to={m.to}>
                 {m.label}
@@ -101,6 +129,17 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
         </nav>
 
         <div className="site-header-actions">
+          <button
+            type="button"
+            className="quick-search-trigger-btn"
+            aria-label="快速搜尋"
+            onClick={() => setSearchOpen(true)}
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
+              <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.8" />
+              <line x1="12.5" y1="12.5" x2="18" y2="18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
           <LanguageSwitcher compact />
           <button
             type="button"
@@ -139,6 +178,15 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
               onClick={() => setOpen(false)}
             >
               觀看記錄
+            </NavLink>
+
+            <p className="site-nav-mobile-divider-label">探索</p>
+            <NavLink
+              className={({ isActive }) => `site-nav-panel-link${isActive ? " is-active" : ""}`}
+              to="/genres"
+              onClick={() => setOpen(false)}
+            >
+              類型玩法
             </NavLink>
 
             <p className="site-nav-mobile-divider-label">影片分類</p>
@@ -181,5 +229,7 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
         </div>
       ) : null}
     </header>
+    <QuickSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+  </>
   );
 }
