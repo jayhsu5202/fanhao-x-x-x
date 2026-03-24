@@ -644,12 +644,6 @@ export default function VideoPage() {
               {data?.manufacturer ? <span className="chip chip-outline">{data.manufacturer}</span> : null}
             </div>
 
-            <p className="detail-player-note">
-              {streamReady
-                ? "按下「播放」後才會向本站載入串流（不會進頁就自動拉片）。播放經本站 HLS 代理；此頁不含第三方廣告或外站導流區塊。"
-                : "後端正在向來源站取得影片頁並解析播放清單，完成後即可按「播放」載入串流（進頁不會自動拉片）。"}
-            </p>
-
             <div className="detail-primary-below">
               {displayGenres.length > 0 ? (
                 <div className="detail-tags-block">
@@ -731,16 +725,6 @@ export default function VideoPage() {
 
           <aside className="detail-yt-sidebar detail-aside-card" id="download-panel" aria-busy={dlUi.mode === "working"}>
             <h2 className="detail-aside-title">下載</h2>
-            <p className="detail-aside-desc">
-              伺服器以 Python 合併為 MP4 後提供下載，與線上串流流程獨立。進入本頁會向伺服器查詢此番號是否<strong>已有完成檔</strong>（可重複下載、不會重複排隊）；處理中則自動續查進度。關閉分頁後仍可從伺服器辨識已完成檔（服務重啟或超過暫存時效後需重新合併）。
-              {dlConcurrency != null ? (
-                <>
-                  {" "}
-                  目前最多同時進行 <strong>{dlConcurrency}</strong> 個下載工作
-                  {dlConcurrency === 1 ? "，其他請求會排隊。" : "。"}
-                </>
-              ) : null}
-            </p>
             <button
               type="button"
               className="btn-primary btn-fanhao"

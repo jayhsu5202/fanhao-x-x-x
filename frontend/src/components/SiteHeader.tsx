@@ -11,11 +11,13 @@ function navLinkClass(isActive: boolean): string {
 
 export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
   const [open, setOpen] = useState(false);
+  const [desktopOpenKey, setDesktopOpenKey] = useState<string | null>(null);
   const location = useLocation();
   const menuId = useId();
 
   useEffect(() => {
     setOpen(false);
+    setDesktopOpenKey(null);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -44,7 +46,12 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
             最愛
           </NavLink>
           {NAV_MENU.map((m) => (
-            <div key={m.key} className="nav-mega-wrap">
+            <div
+              key={m.key}
+              className={`nav-mega-wrap${desktopOpenKey === m.key ? " is-open" : ""}`}
+              onMouseEnter={() => setDesktopOpenKey(m.key)}
+              onMouseLeave={() => setDesktopOpenKey((prev) => (prev === m.key ? null : prev))}
+            >
               <NavLink className={({ isActive }) => navLinkClass(isActive)} to={m.to}>
                 {m.label}
               </NavLink>

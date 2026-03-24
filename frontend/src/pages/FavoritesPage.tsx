@@ -46,9 +46,6 @@ export default function FavoritesPage() {
         <h1 className="home-section-title" style={{ marginBottom: "0.75rem" }}>
           我的最愛
         </h1>
-        <p className="msg-muted" style={{ marginBottom: "1.25rem" }}>
-          資料存在本站 SQLite，清除瀏覽器不會遺失；重灌後端資料庫則會清空。
-        </p>
         {err ? <p className="msg-error">{err}</p> : null}
         {items === null && !err ? (
           <div className="featured-matrix featured-matrix--home">

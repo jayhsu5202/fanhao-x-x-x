@@ -96,8 +96,6 @@ export default function CategoryPage() {
     subcategoryNav?.label ??
     categoryNav?.label ??
     "";
-  const currentDescription =
-    meta?.description || subcategoryNav?.description || categoryNav?.description || "";
   const navItems = subcategory
     ? meta?.siblingSubcategories ?? categoryNav?.children ?? []
     : meta?.subcategories ?? categoryNav?.children ?? [];
@@ -135,10 +133,7 @@ export default function CategoryPage() {
         </nav>
 
         <header className="category-hero">
-          <p className="category-kicker">{subcategory ? categoryNav?.label : "分類瀏覽"}</p>
           <h1 className="category-title">{initialLoading && !meta ? "載入中…" : currentTitle}</h1>
-          {currentDescription ? <p className="category-desc">{currentDescription}</p> : null}
-          <p className="category-scroll-hint msg-muted">往下滑載入更多</p>
           {navItems.length > 0 ? (
             <nav className="category-submenu" aria-label={subcategory ? "同分類切換" : "此分類子選單"}>
               {navItems.map((item) => {
@@ -205,16 +200,6 @@ export default function CategoryPage() {
             已載入目前片單
           </p>
         ) : null}
-
-        <p className="footer-note">
-          {subcategory && meta?.searchQuery ? (
-            <>
-              內容已整理成固定入口。
-              <span aria-hidden> · </span>
-            </>
-          ) : null}
-          僅供合法授權內容使用。
-        </p>
       </main>
     </div>
   );
