@@ -5,7 +5,7 @@ import path from "node:path";
 import PQueue from "p-queue";
 import { config } from "../config.js";
 import { nestedDownloadRelDir } from "./download-paths.js";
-import { runDownloadJob } from "./python-download-worker-pool.js";
+import { runDownloadJob } from "./node-download-worker.js";
 import { prisma } from "./prisma.js";
 import type { DownloadJob as DbJob } from "@prisma/client";
 

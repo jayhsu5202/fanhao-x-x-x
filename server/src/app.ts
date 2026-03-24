@@ -1,10 +1,8 @@
-import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { finished } from "node:stream/promises";
 import { Readable, Transform } from "node:stream";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyReply } from "fastify";
@@ -54,7 +52,7 @@ import {
   resolveThumbnailUrlFromPage,
   setCachedThumbImage,
 } from "./lib/thumbnail-cache.js";
-import { getDownloadWorkerPoolStats } from "./lib/python-download-worker-pool.js";
+import { checkFfmpegAvailable, getDownloadWorkerPoolStats } from "./lib/node-download-worker.js";
 import { getCachedVideoPageParsed, setCachedVideoPageParsed } from "./lib/video-detail-cache.js";
 import { createStreamSegmentCache } from "./lib/stream-segment-cache.js";
 import { upstreamFetch } from "./lib/upstream-fetch.js";
@@ -66,8 +64,6 @@ const segmentCache = createStreamSegmentCache({
   maxTotalBytes: config.streamSegmentCacheMaxTotalBytes,
   maxSegmentBytes: config.streamSegmentCacheMaxSegmentBytes,
 });
-
-const execFileAsync = promisify(execFile);
 
 const STREAM_TTL_SEC = 2 * 60 * 60;
 
@@ -173,25 +169,12 @@ await app.register(rateLimit, {
   timeWindow: "1 minute",
 });
 
-async function checkPythonMissav(): Promise<boolean> {
-  try {
-    await execFileAsync(config.pythonPath, ["-c", "import missav_api"], {
-      cwd: config.projectRoot,
-      env: { ...process.env, PYTHONPATH: config.projectRoot },
-      timeout: 8000,
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 app.get("/api/health", async () => {
-  const pythonAvailable = await checkPythonMissav();
+  const ffmpegAvailable = await checkFfmpegAvailable();
   const queue = await getDownloadQueueStats();
   return {
     ok: true,
-    pythonAvailable,
+    ffmpegAvailable,
     downloadQueueConcurrency: config.downloadQueueConcurrency,
     upstreamConnectionsPerOrigin: config.upstreamConnectionsPerOrigin,
     streamMetricsLogEnabled: config.streamMetricsLog,
@@ -798,9 +781,9 @@ app.post("/api/downloads", async (request, reply) => {
   if (active) {
     return { jobId: active.id, reused: true };
   }
-  const pythonOk = await checkPythonMissav();
-  if (!pythonOk) {
-    return sendError(reply, 503, "PYTHON_UNAVAILABLE", "Python 環境無法載入 missav_api，請設定 PYTHON_PATH 為專案 .venv 的 python");
+  const ffmpegOk = await checkFfmpegAvailable();
+  if (!ffmpegOk) {
+    return sendError(reply, 503, "FFMPEG_UNAVAILABLE", "找不到 ffmpeg，無法執行 Node 下載流程");
   }
   await fs.mkdir(config.downloadDir, { recursive: true });
   const pageBase = resolveMissavBaseFromRequest(request);
