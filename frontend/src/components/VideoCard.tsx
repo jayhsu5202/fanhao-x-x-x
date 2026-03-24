@@ -76,7 +76,7 @@ export default function VideoCard({
                 key={thumbSrc}
                 src={thumbSrc}
                 alt=""
-                loading="eager"
+                loading="lazy"
                 decoding="async"
                 className="card-thumb-img"
                 onError={() => setThumbOk(false)}
@@ -101,6 +101,11 @@ export default function VideoCard({
           </div>
         </Link>
         <div className="card-body">
+          <Link to={videoTo} state={{ detailPeek: item }} className="card-title-link">
+            <p className="title" title={title}>
+              {title}
+            </p>
+          </Link>
           <Link to={videoTo} state={{ detailPeek: item }} className="card-slug-link">
             <div className="slug">{item.id}</div>
           </Link>
@@ -116,11 +121,6 @@ export default function VideoCard({
               </Link>
             ))}
           </div>
-          <Link to={videoTo} state={{ detailPeek: item }} className="card-title-link">
-            <p className="title" title={title}>
-              {title}
-            </p>
-          </Link>
         </div>
       </div>
       {showFavoriteHeart ? (

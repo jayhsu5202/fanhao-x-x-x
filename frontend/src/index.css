@@ -828,6 +828,7 @@ code.inline-code {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
+  min-height: 100%;
   backdrop-filter: blur(14px);
   transition: transform 0.18s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
@@ -956,8 +957,10 @@ code.inline-code {
 }
 
 .card-thumb {
-  aspect-ratio: 16 / 10;
-  background: linear-gradient(145deg, #141824, #1e1a2e);
+  aspect-ratio: 4 / 5;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 48%),
+    linear-gradient(160deg, #121722, #1c1827 65%, #11141d);
   position: relative;
   overflow: hidden;
   display: grid;
@@ -967,8 +970,8 @@ code.inline-code {
 .card-thumb-img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center;
+  object-fit: cover;
+  object-position: center top;
   background: #0d1018;
   display: block;
   transition: transform 0.35s ease;
@@ -1033,11 +1036,12 @@ code.inline-code {
 
 .card-chip-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.28rem;
   margin: 0;
-  min-height: 1.7rem;
-  align-items: center;
+  min-height: 1.85rem;
+  max-height: calc(1.52rem * 2);
+  align-items: flex-start;
   overflow: hidden;
 }
 
@@ -1046,9 +1050,9 @@ code.inline-code {
 }
 
 .card-chip {
-  font-size: 0.68rem;
-  line-height: 1.25;
-  padding: 0.1rem 0.42rem;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  padding: 0.18rem 0.45rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--muted);
@@ -1071,17 +1075,17 @@ code.inline-code {
 }
 
 .card-body {
-  padding: 0.8rem 1rem 1.05rem;
+  padding: 0.82rem 0.9rem 0.95rem;
   display: flex;
   flex-direction: column;
-  gap: 0.42rem;
+  gap: 0.38rem;
   align-items: stretch;
 }
 
 .card-body .slug {
-  font-size: clamp(0.78rem, 0.2vw + 0.72rem, 0.84rem);
+  font-size: clamp(0.72rem, 0.18vw + 0.69rem, 0.8rem);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--muted);
   min-height: 1.1rem;
   white-space: nowrap;
@@ -1090,14 +1094,24 @@ code.inline-code {
 }
 
 .card-body .title {
-  font-size: clamp(0.95rem, 0.35vw + 0.86rem, 1.05rem);
+  font-size: clamp(0.97rem, 0.3vw + 0.9rem, 1.08rem);
+  font-weight: 600;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.45;
-  min-height: calc(1.45em * 2);
+  line-height: 1.38;
+  min-height: calc(1.38em * 2);
+  color: var(--text);
+}
+
+.card-title-link:hover .title {
+  color: var(--accent);
+}
+
+.card-slug-link:hover .slug {
+  color: var(--text);
 }
 
 .skeleton {
@@ -2069,8 +2083,12 @@ code.inline-code {
   }
 
   .card-body {
-    padding: 0.65rem 0.72rem 0.85rem;
+    padding: 0.68rem 0.72rem 0.82rem;
     gap: 0.34rem;
+  }
+
+  .card-thumb {
+    aspect-ratio: 3 / 4;
   }
 }
 
