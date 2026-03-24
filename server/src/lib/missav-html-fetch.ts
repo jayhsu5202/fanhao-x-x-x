@@ -1,8 +1,16 @@
 import { buildMissavDocumentHeaders } from "./missav-headers.js";
+import { fetchMissavHtmlViaPythonPool } from "./python-html-worker-pool.js";
 import { upstreamFetch } from "./upstream-fetch.js";
 
-/** Node-only：以 undici 抓 MissAV 影片頁，不再 fallback Python。 */
+/**
+ * 優先 Node（undici）抓 MissAV 影片頁；失敗再交給長駐 Python 程序池（重用 session，非每次冷啟動）。
+ * `MISSAV_HTML_PYTHON_ONLY=1` 時略過 Node，全走 Python。
+ */
 export async function fetchMissavHtml(pageUrl: string, acceptLanguage?: string): Promise<string> {
+  if (process.env.MISSAV_HTML_PYTHON_ONLY === "1") {
+    return fetchMissavHtmlViaPythonPool(pageUrl, acceptLanguage);
+  }
+
   const headers = buildMissavDocumentHeaders(pageUrl, acceptLanguage, "fromSite");
   const fetchPage = () =>
     upstreamFetch(pageUrl, {
@@ -21,10 +29,10 @@ export async function fetchMissavHtml(pageUrl: string, acceptLanguage?: string):
       if (text.length > 1500 && text.includes("<!DOCTYPE html>")) {
         return text;
       }
-      throw new Error("Node HTML fetch returned unexpected body");
     }
-    throw new Error(`Node HTML fetch failed with status ${res.status}`);
   } catch {
-    throw new Error("Node HTML fetch failed");
+    /* fall through to Python */
   }
+
+  return fetchMissavHtmlViaPythonPool(pageUrl, acceptLanguage);
 }

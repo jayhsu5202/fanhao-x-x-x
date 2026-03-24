@@ -1,3 +1,4 @@
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
@@ -7,6 +8,7 @@ import { fetchVideoPage, parseVideoHtml } from "./missav-page.js";
 import { upstreamFetch } from "./upstream-fetch.js";
 
 const execFileAsync = promisify(execFile);
+const resolvedFfmpegPath = config.ffmpegPath === "ffmpeg" ? ffmpegInstaller.path : config.ffmpegPath;
 
 type Variant = {
   bandwidth: number;
@@ -95,7 +97,7 @@ function buildHeaderBlob(pageUrl: string): string {
 
 export async function checkFfmpegAvailable(): Promise<{ available: boolean; version: string | null }> {
   try {
-    const { stdout } = await execFileAsync(config.ffmpegPath, ["-version"], {
+    const { stdout } = await execFileAsync(resolvedFfmpegPath, ["-version"], {
       timeout: 5_000,
       maxBuffer: 1024 * 128,
     });
@@ -116,7 +118,7 @@ export async function runDownloadJob(payload: {
 
   return new Promise((resolve) => {
     const child = spawn(
-      config.ffmpegPath,
+      resolvedFfmpegPath,
       [
         "-nostdin",
         "-y",
@@ -126,6 +128,10 @@ export async function runDownloadJob(payload: {
         buildCdnMediaHeaders(payload.pageUrl, "media")["User-Agent"] || "",
         "-headers",
         `${headers}\r\n`,
+        "-protocol_whitelist",
+        "file,http,https,tcp,tls,crypto",
+        "-allowed_extensions",
+        config.ffmpegHlsAllowedSegmentExtensions,
         "-i",
         playlistUrl,
         "-c",

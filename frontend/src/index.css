@@ -839,7 +839,6 @@ code.inline-code {
 
 .card-thumb-link {
   display: block;
-  width: 100%;
   color: inherit;
   text-decoration: none;
   outline-offset: 2px;
@@ -958,9 +957,6 @@ code.inline-code {
 }
 
 .card-thumb {
-  width: 100%;
-  min-width: 0;
-  height: auto;
   aspect-ratio: 16 / 10;
   background: #0d1018;
   position: relative;
@@ -976,12 +972,14 @@ code.inline-code {
   object-position: center;
   background: #0d1018;
   display: block;
+  z-index: 0;
   transition: transform 0.35s ease;
 }
 
 .card-thumb-shade {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.24));
   pointer-events: none;
 }
@@ -991,7 +989,7 @@ code.inline-code {
   right: 0.55rem;
   bottom: 0.55rem;
   left: 0.55rem;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -1076,18 +1074,17 @@ code.inline-code {
 .card-play {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   opacity: 0.78;
   filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.42));
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease;
   pointer-events: none;
 }
 
 .card-play svg {
   display: block;
-  width: 44px;
-  height: 44px;
   transform: translateZ(0);
 }
 
@@ -2047,7 +2044,6 @@ code.inline-code {
 
   .card:hover .card-play {
     opacity: 0.92;
-    transform: scale(1.05);
   }
 }
 
