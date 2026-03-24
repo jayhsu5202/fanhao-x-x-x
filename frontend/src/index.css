@@ -379,6 +379,42 @@ code.inline-code {
   letter-spacing: 0.02em;
 }
 
+/* accordion toggle button */
+.site-nav-mobile-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 0.35rem 0.4rem 0.5rem;
+  font-size: clamp(0.95rem, 0.35vw + 0.88rem, 1.02rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: left;
+  border-radius: 8px;
+  transition: background 0.14s ease;
+}
+
+.site-nav-mobile-section-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.site-nav-mobile-chevron {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+  display: inline-block;
+  transform: rotate(0deg);
+}
+
+.site-nav-mobile-section-toggle.is-expanded .site-nav-mobile-chevron {
+  transform: rotate(90deg);
+}
+
 .site-nav-panel-sublink {
   font-size: clamp(0.98rem, 0.35vw + 0.88rem, 1.06rem);
   color: var(--muted);

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { NAV_MENU } from "../constants/navCategories";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -12,12 +12,15 @@ function navLinkClass(isActive: boolean): string {
 export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
   const [open, setOpen] = useState(false);
   const [desktopOpenKey, setDesktopOpenKey] = useState<string | null>(null);
+  const [mobileExpandedKey, setMobileExpandedKey] = useState<string | null>(null);
   const location = useLocation();
   const menuId = useId();
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setOpen(false);
     setDesktopOpenKey(null);
+    setMobileExpandedKey(null);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -41,6 +44,15 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  /* 桌面版：滑鼠離開後短暫延遲再關閉，避免跨 mega-wrap 移動時閃爍 */
+  const handleMegaEnter = (key: string) => {
+    if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    setDesktopOpenKey(key);
+  };
+  const handleMegaLeave = () => {
+    leaveTimerRef.current = setTimeout(() => setDesktopOpenKey(null), 120);
+  };
+
   const shellClass = `site-header ${tone === "detail" ? "site-header--detail" : ""}`;
 
   return (
@@ -63,8 +75,8 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
               className={`nav-mega-wrap${desktopOpenKey === m.key ? " is-open" : ""}${
                 index >= NAV_MENU.length - 2 ? " nav-mega-wrap--align-end" : ""
               }`}
-              onMouseEnter={() => setDesktopOpenKey(m.key)}
-              onMouseLeave={() => setDesktopOpenKey((prev) => (prev === m.key ? null : prev))}
+              onMouseEnter={() => handleMegaEnter(m.key)}
+              onMouseLeave={handleMegaLeave}
             >
               <NavLink className={({ isActive }) => navLinkClass(isActive)} to={m.to}>
                 {m.label}
@@ -122,25 +134,37 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
             <p className="site-nav-mobile-divider-label">影片分類</p>
             {NAV_MENU.map((m) => (
               <div key={m.key} className="site-nav-mobile-section" role="group" aria-label={m.label}>
-                <div className="site-nav-mobile-section-title">{m.label}</div>
-                <Link
-                  className="site-nav-panel-sublink site-nav-panel-sublink-strong"
-                  to={m.to}
-                  onClick={() => setOpen(false)}
+                <button
+                  type="button"
+                  className={`site-nav-mobile-section-title site-nav-mobile-section-toggle${mobileExpandedKey === m.key ? " is-expanded" : ""}`}
+                  onClick={() => setMobileExpandedKey((prev) => (prev === m.key ? null : m.key))}
+                  aria-expanded={mobileExpandedKey === m.key}
                 >
-                  瀏覽「{m.label}」全部
-                </Link>
-                {m.children.map((ch) => (
-                  <Link
-                    key={`${m.key}-${ch.label}`}
-                    className="site-nav-panel-sublink"
-                    to={ch.to}
-                    title={ch.description}
-                    onClick={() => setOpen(false)}
-                  >
-                    {ch.label}
-                  </Link>
-                ))}
+                  <span>{m.label}</span>
+                  <span className="site-nav-mobile-chevron" aria-hidden>&#8250;</span>
+                </button>
+                {mobileExpandedKey === m.key ? (
+                  <>
+                    <Link
+                      className="site-nav-panel-sublink site-nav-panel-sublink-strong"
+                      to={m.to}
+                      onClick={() => setOpen(false)}
+                    >
+                      瀏覽「{m.label}」全部
+                    </Link>
+                    {m.children.map((ch) => (
+                      <Link
+                        key={`${m.key}-${ch.label}`}
+                        className="site-nav-panel-sublink"
+                        to={ch.to}
+                        title={ch.description}
+                        onClick={() => setOpen(false)}
+                      >
+                        {ch.label}
+                      </Link>
+                    ))}
+                  </>
+                ) : null}
               </div>
             ))}
           </div>
