@@ -21,6 +21,18 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    if (!desktopOpenKey) return;
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (!target.closest(".nav-mega-wrap")) {
+        setDesktopOpenKey(null);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [desktopOpenKey]);
+
+  useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);

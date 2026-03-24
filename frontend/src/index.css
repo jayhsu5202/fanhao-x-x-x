@@ -149,6 +149,9 @@ code.inline-code {
   align-items: center;
   gap: 0.2rem 0.35rem;
   justify-content: flex-end;
+  overflow: visible;
+  position: relative;
+  z-index: 80;
 }
 
 @media (min-width: 1100px) {
@@ -200,7 +203,7 @@ code.inline-code {
   border: 1px solid var(--stroke);
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
-  z-index: 60;
+  z-index: 80;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -825,8 +828,8 @@ code.inline-code {
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
   overflow: hidden;
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 100%;
   min-width: 0;      /* 防止 grid 子元素因內容撐開卡片 */
@@ -843,6 +846,7 @@ code.inline-code {
   color: inherit;
   text-decoration: none;
   outline-offset: 2px;
+  flex-shrink: 0;  /* 防止縮圖被壓縮 */
 }
 
 .card-slug-link,
@@ -996,7 +1000,7 @@ code.inline-code {
   left: 0.55rem;
   z-index: 3;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
   gap: 0.3rem;
   pointer-events: none;
@@ -1040,10 +1044,11 @@ code.inline-code {
 
 .card-meta-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.35rem 0.45rem;
   min-height: 1.45rem;
+  overflow: hidden;
 }
 
 .card-chip-row {
@@ -1099,6 +1104,8 @@ code.inline-code {
   flex-direction: column;
   gap: 0.32rem;
   align-items: stretch;
+  flex: 1;         /* 撐滿剩餘高度 */
+  min-height: 0;
 }
 
 .card-body .slug {
