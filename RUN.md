@@ -2,8 +2,9 @@
 
 ## 前置
 
-1. 專案根目錄已執行 `uv sync`（Python 依賴含 `missav_api`、`eaf_base_api`）。
+1. 專案根目錄已執行 `uv sync`（Python 依賴含 `missav_api`、`eaf_base_api`；**僅在需要 Python HTML worker 等腳本時**）。
 2. 已安裝 Node.js 20+。
+3. 使用 **`serverv3`** 並開啟 **MP4 下載** 時：須在系統安裝 **FFmpeg 可執行檔**（**非** `npm` 套件；`serverv3/package.json` 未宣告 ffmpeg 依賴）。可選環境變數 `FFMPEG_PATH` 指向二進位路徑。
 
 ## 環境變數（後端）
 

@@ -27,6 +27,11 @@ export function getVideoPageFetchQueueStats(): {
 }
 
 const REGEX_THUMB = /og:image" content="(.*?)cover-n\.jpg/;
+/**
+ * MissAV 頁面的 JS 混淆格式：'playlist|m3u8|<uuid-parts>|<domain>|surrit|https|...|video'
+ * 用 .split('|').reverse() 還原後組出 https://surrit.com/<uuid>/playlist.m3u8
+ * 注意：此 regex 必須與實際頁面 JS 格式一致，如頁面更新需同步調整。
+ */
 const REGEX_M3U8_JS = /'m3u8(.*?)video/;
 
 export type ParsedVideoPage = {
@@ -65,8 +70,12 @@ export function parseThumbnailOnly(html: string): string | null {
 
 function buildM3u8Url(jsChunk: string): string {
   const urlParts = jsChunk.split("|").reverse();
-  if (urlParts.length < 9) throw new Error("m3u8 js parts too short");
-  return `${urlParts[1]}://${urlParts[2]}.${urlParts[3]}/${urlParts[4]}-${urlParts[5]}-${urlParts[6]}-${urlParts[7]}-${urlParts[8]}/playlist.m3u8`;
+  if (urlParts.length < 9) throw new Error(`m3u8 js parts too short (got ${urlParts.length}): ${jsChunk.slice(0, 120)}`);
+  const url = `${urlParts[1]}://${urlParts[2]}.${urlParts[3]}/${urlParts[4]}-${urlParts[5]}-${urlParts[6]}-${urlParts[7]}-${urlParts[8]}/playlist.m3u8`;
+  // 防呆：確保組出的是合法 URL 且副檔名為 .m3u8
+  try { new URL(url); } catch { throw new Error(`buildM3u8Url 組出無效 URL: ${url}`); }
+  if (!url.includes(".m3u8")) throw new Error(`buildM3u8Url 組出非 m3u8 URL: ${url}`);
+  return url;
 }
 
 export function parseVideoHtml(html: string): ParsedVideoPage {

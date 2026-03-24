@@ -70,6 +70,13 @@ export const config = {
   })(),
   streamSecret: process.env.STREAM_SECRET || "dev-insecure-change-me",
   ffmpegPath: (process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || "ffmpeg").trim() || "ffmpeg",
+  /**
+   * FFmpeg HLS demuxer：部分 CDN 的 segment 檔名為 `.jpeg` 等，預設白名單不含時會失敗。
+   * 設為 `ALL` 允許任意副檔名（playlist 來源由本機解析，非使用者任意檔案）。
+   */
+  ffmpegHlsAllowedSegmentExtensions: (
+    process.env.FFMPEG_HLS_ALLOWED_SEGMENT_EXTENSIONS || "ALL"
+  ).trim() || "ALL",
   downloadDir: path.resolve(
     process.env.DOWNLOAD_DIR || path.join(projectRoot, "data", "downloads")
   ),

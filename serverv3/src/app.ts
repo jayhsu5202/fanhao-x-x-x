@@ -26,7 +26,7 @@ import {
   parseVideoHtml,
 } from "./lib/missav-page.js";
 import { getBrowseCategoryMeta, getBrowseSubcategoryMeta, listBrowseSubcategories } from "./lib/browse-categories.js";
-import { checkFfmpegAvailable, getDownloadWorkerPoolStats } from "./lib/ffmpeg-download.js";
+import { getDownloadWorkerPoolStats } from "./lib/hls-downloader.js";
 import { orderSearchRecommsForMode, parseSearchSortMode } from "./lib/recombee-search-sort.js";
 import {
   hyphenStudioSearchQuery,
@@ -170,13 +170,12 @@ await app.register(rateLimit, {
 });
 
 app.get("/api/health", async () => {
-  const ffmpeg = await checkFfmpegAvailable();
   const queue = await getDownloadQueueStats();
   return {
     ok: true,
     pythonAvailable: false,
-    ffmpegAvailable: ffmpeg.available,
-    ffmpegVersion: ffmpeg.version,
+    ffmpegAvailable: true,
+    ffmpegVersion: "bundled (hls-threaded)",
     downloadQueueConcurrency: config.downloadQueueConcurrency,
     upstreamConnectionsPerOrigin: config.upstreamConnectionsPerOrigin,
     streamMetricsLogEnabled: config.streamMetricsLog,
@@ -868,15 +867,12 @@ app.post("/api/downloads", async (request, reply) => {
   }
   const done = await findCompletedJobForSlug(slug, quality);
   if (done) {
-    return { jobId: done.id, reused: true };
+    return { jobId: done.id, reused: true, status: "done" as const };
   }
   const active = await findActiveJobForSlug(slug, quality);
   if (active) {
-    return { jobId: active.id, reused: true };
-  }
-  const ffmpeg = await checkFfmpegAvailable();
-  if (!ffmpeg.available) {
-    return sendError(reply, 503, "FFMPEG_UNAVAILABLE", "ffmpeg 無法使用，請設定 FFMPEG_PATH 或安裝 ffmpeg");
+    // 回傳 status 讓前端知道工作仍在進行中，不可直接觸發下載
+    return { jobId: active.id, reused: true, status: active.status };
   }
   await fs.mkdir(config.downloadDir, { recursive: true });
   const pageBase = resolveMissavBaseFromRequest(request);

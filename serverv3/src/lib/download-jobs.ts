@@ -5,7 +5,7 @@ import path from "node:path";
 import PQueue from "p-queue";
 import { config } from "../config.js";
 import { nestedDownloadRelDir } from "./download-paths.js";
-import { runDownloadJob } from "./ffmpeg-download.js";
+import { runHlsDownloadJob } from "./hls-downloader.js";
 import { prisma } from "./prisma.js";
 import type { DownloadJob as DbJob } from "@prisma/client";
 
@@ -157,7 +157,7 @@ export async function createDownloadJob(
       where: { id },
       data: {
         status: "running",
-        message: "ffmpeg 下載中",
+        message: "HLS 分段下載中",
         outputPath: outFile,
         filename,
         startedAt,
@@ -168,20 +168,21 @@ export async function createDownloadJob(
     const pageUrl = `${base}/${slug}`;
 
     try {
-      const result = await runDownloadJob({
+      const result = await runHlsDownloadJob({
         pageUrl,
         outputPath: outFile,
         quality,
       });
       const finishedAt = new Date();
+      const segSummary = `已下載 ${result.segmentCount} 個 segment`;
 
       await prisma.downloadJob.update({
         where: { id },
         data: {
           status: "verifying",
           message: "驗證下載檔案中",
-          ffmpegExitCode: result.exitCode,
-          ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+          ffmpegExitCode: null,
+          ffmpegSummary: segSummary,
           finishedAt,
         },
       });
@@ -194,8 +195,8 @@ export async function createDownloadJob(
             status: "done",
             message: "完成",
             fileSizeBytes: stat.size,
-            ffmpegExitCode: result.exitCode,
-            ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+            ffmpegExitCode: null,
+            ffmpegSummary: segSummary,
             finishedAt,
             verifiedAt: new Date(),
           },
@@ -206,15 +207,15 @@ export async function createDownloadJob(
       await fs.rm(outFile, { force: true }).catch(() => undefined);
       const failureMessage = result.ok
         ? (stat.reason ?? "下載檔驗證失敗")
-        : (result.error || result.ffmpegSummary || "下載失敗");
+        : (result.error ?? "下載失敗");
       await prisma.downloadJob.update({
         where: { id },
         data: {
           status: "error",
           message: failureMessage.slice(0, 500),
           fileSizeBytes: stat.size,
-          ffmpegExitCode: result.exitCode,
-          ffmpegSummary: result.ffmpegSummary.slice(0, 500),
+          ffmpegExitCode: null,
+          ffmpegSummary: (result.error ?? "").slice(0, 500),
           finishedAt,
           verifiedAt: null,
         },

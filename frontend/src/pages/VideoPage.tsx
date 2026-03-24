@@ -35,7 +35,7 @@ type VideoDetail = {
   stream_token?: string;
 };
 
-type JobRes = { jobId: string; reused?: boolean };
+type JobRes = { jobId: string; reused?: boolean; status?: string };
 
 type DownloadPhase = "pending" | "running" | "verifying";
 
@@ -478,16 +478,57 @@ export default function VideoPage() {
       if (ac.signal.aborted) return;
 
       if (res.reused === true) {
-        clearActiveDownload(slug);
-        let fn: string | undefined;
-        try {
-          const st = await apiGet<JobStatusResponse>(`/api/downloads/${res.jobId}`);
-          fn = st.filename;
-        } catch {
-          fn = undefined;
+        if (res.status === "done") {
+          // 工作已完成，直接觸發下載
+          clearActiveDownload(slug);
+          let fn: string | undefined;
+          try {
+            const st = await apiGet<JobStatusResponse>(`/api/downloads/${res.jobId}`);
+            fn = st.filename;
+          } catch {
+            fn = undefined;
+          }
+          setDlUi({ mode: "ready", jobId: res.jobId, filename: fn });
+          triggerSaveAsDownload(downloadFileUrl(res.jobId), fn);
+          return;
         }
-        setDlUi({ mode: "ready", jobId: res.jobId, filename: fn });
-        triggerSaveAsDownload(downloadFileUrl(res.jobId), fn);
+        // 工作仍在進行中（pending/running/verifying），銜接輪詢流程
+        saveActiveDownload(slug, res.jobId, startedAt);
+        setDlUi({ mode: "working", jobId: res.jobId, serverStatus: toWorkingPhase(res.status ?? "pending"), startedAt });
+        const reusedResult = await pollDownloadUntilTerminal(res.jobId, {
+          signal: ac.signal,
+          onStatus: (st) => {
+            if (ac.signal.aborted) return;
+            if (st.status === "pending" || st.status === "running" || st.status === "verifying") {
+              const serverStatus = toWorkingPhase(st.progressPhase ?? st.status);
+              setDlUi({ mode: "working", jobId: res.jobId, serverStatus, startedAt, queue: st.queue });
+            }
+          },
+        });
+        if (ac.signal.aborted) return;
+        if (reusedResult === "done") {
+          clearActiveDownload(slug);
+          let fn: string | undefined;
+          try {
+            const st = await apiGet<JobStatusResponse>(`/api/downloads/${res.jobId}`);
+            fn = st.filename;
+          } catch {
+            fn = undefined;
+          }
+          setDlUi({ mode: "ready", jobId: res.jobId, filename: fn });
+          triggerSaveAsDownload(downloadFileUrl(res.jobId), fn);
+        } else if (reusedResult === "error") {
+          clearActiveDownload(slug);
+          try {
+            const st = await apiGet<JobStatusResponse>(`/api/downloads/${res.jobId}`);
+            setDlUi({ mode: "error", message: st.message || "下載失敗" });
+          } catch {
+            setDlUi({ mode: "error", message: "下載失敗" });
+          }
+        } else if (reusedResult === "timeout") {
+          clearActiveDownload(slug);
+          setDlUi({ mode: "error", message: "等待逾時（超過 1 小時），請稍後重試或檢查伺服器暫存目錄。" });
+        }
         return;
       }
 
