@@ -10,8 +10,8 @@ import {
   sortItemsByReleasedAt,
 } from "../lib/searchSortMode";
 
-/** 後端 /api/search 單次上限 50 */
-const SEARCH_PAGE_LIMIT = 50;
+/** 後端 /api/search 單次請求筆數；Recombee SearchItems minRelevance:low 最多可到 1000 */
+const SEARCH_PAGE_LIMIT = 100;
 
 export default function SearchResultsPage() {
   const { locale } = useMissavLocale();

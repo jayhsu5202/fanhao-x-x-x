@@ -5,7 +5,7 @@ import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
 import { useInfiniteRecombeeFeed } from "../hooks/useInfiniteRecombeeFeed";
 
-const PAGE_SIZE = 32;
+const PAGE_SIZE = 48;
 
 export default function HomePage() {
   const { locale } = useMissavLocale();
