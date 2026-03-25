@@ -77,7 +77,6 @@ export const NAV_MENU: readonly NavMenuItem[] = [
     description: "聚焦麻豆、TWAV 與其它亞洲內容。",
     to: "/c/madou",
     children: [
-      { key: "genres", label: "類型玩法", description: "依主題、角色、玩法等標籤快速搜尋。", to: "/genres" },
       { key: "madou-media", label: "麻豆傳媒", description: "以 麻豆傳媒 主題聚合的結果。", to: "/c/madou?sub=madou-media" },
       { key: "twav", label: "TWAV", description: "以 TWAV 主題聚合的結果。", to: "/c/madou?sub=twav" },
       { key: "furuke", label: "Furuke", description: "以 Furuke 主題聚合的結果。", to: "/c/madou?sub=furuke" },
