@@ -647,6 +647,7 @@ export default function VideoPage() {
                 <video
                   ref={videoRef}
                   controls
+                  playsInline
                   poster={posterUrl}
                   preload="none"
                   style={{ display: playbackStarted ? "block" : "none" }}
