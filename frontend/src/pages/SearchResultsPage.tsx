@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
@@ -15,6 +15,7 @@ const SEARCH_PAGE_LIMIT = 100;
 
 export default function SearchResultsPage() {
   const { locale } = useMissavLocale();
+  const { key: locationKey } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const qParam = searchParams.get("q") ?? "";
   const trimmed = qParam.trim();
@@ -54,6 +55,7 @@ export default function SearchResultsPage() {
     pageSize: SEARCH_PAGE_LIMIT,
     resetKey: `${locale}|${trimmed}|${sortMode}`,
     enabled: hasQuery,
+    cacheKey: locationKey,
     getInitialUrl,
     getMoreUrl,
     initialErrorLabel: "搜尋失敗",

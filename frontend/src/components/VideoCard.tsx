@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { thumbnailUrlForSlug } from "../api/client";
 import { useMissavLocale } from "../context/MissavLocaleContext";
@@ -49,7 +49,7 @@ function pickCatalogThumbUrl(v: Record<string, unknown> | undefined): string | n
   return null;
 }
 
-export default function VideoCard({
+const VideoCard = React.memo(function VideoCard({
   item,
   showFavoriteHeart = false,
   /** 在「我的最愛」列表應為 true，避免愛心顯示成未加入 */
@@ -174,4 +174,6 @@ export default function VideoCard({
       ) : null}
     </div>
   );
-}
+});
+
+export default VideoCard;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "../api/client";
 import type { RecommItem } from "../components/VideoCard";
+import { clearFeedCache, readFeedCache, writeFeedCache } from "../lib/feedCache";
 
 export type RecombeeFeedResponse = {
   recomms: RecommItem[];
@@ -58,6 +59,7 @@ export function useInfiniteRecombeeFeed(options: {
   pageSize: number;
   resetKey: string;
   enabled?: boolean;
+  cacheKey?: string;
   getInitialUrl: () => string;
   getMoreUrl: (ctx: { useNext: boolean; recommId: string | null }) => string;
   initialErrorLabel: string;
@@ -68,6 +70,7 @@ export function useInfiniteRecombeeFeed(options: {
     pageSize,
     resetKey,
     enabled = true,
+    cacheKey,
     getInitialUrl,
     getMoreUrl,
     initialErrorLabel,
@@ -82,12 +85,15 @@ export function useInfiniteRecombeeFeed(options: {
   getMoreUrlRef.current = getMoreUrl;
   onInitialResponseRef.current = onInitialResponse;
 
-  const [items, setItems] = useState<RecommItem[]>([]);
-  const [recommId, setRecommId] = useState<string | null>(null);
-  const [initialLoading, setInitialLoading] = useState(true);
+  // 若 cacheKey 存在且 cache 命中，直接從 cache 還原（跳過首次 fetch）
+  const initFromCache = cacheKey ? readFeedCache(cacheKey) : null;
+
+  const [items, setItems] = useState<RecommItem[]>(initFromCache?.items ?? []);
+  const [recommId, setRecommId] = useState<string | null>(initFromCache?.recommId ?? null);
+  const [initialLoading, setInitialLoading] = useState(!initFromCache);
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [canRecommendNext, setCanRecommendNext] = useState(false);
+  const [canRecommendNext, setCanRecommendNext] = useState(initFromCache ? Boolean(initFromCache.recommId) : false);
   const [feedHasMore, setFeedHasMore] = useState(true);
 
   const loadMoreLock = useRef(false);
@@ -106,6 +112,24 @@ export function useInfiniteRecombeeFeed(options: {
   recommIdRef.current = recommId;
   canNextRef.current = canRecommendNext;
 
+  // cacheKey 變化時清除舊 cache（resetKey 改變也會觸發下面的 effect 重跑）
+  const cacheKeyRef = useRef(cacheKey);
+  cacheKeyRef.current = cacheKey;
+
+  // 離開頁面前把目前 items + recommId 寫入 cache
+  useEffect(() => {
+    if (!cacheKey) return;
+    return () => {
+      writeFeedCache(cacheKey, {
+        items: itemsRef.current,
+        recommId: recommIdRef.current,
+      });
+    };
+  }, [cacheKey]);
+
+  // 追蹤是否為首次 mount（用於 cache 命中時跳過初始 fetch）
+  const isFirstRenderRef = useRef(true);
+
   useEffect(() => {
     if (!enabled) {
       feedGenRef.current += 1;
@@ -117,9 +141,23 @@ export function useInfiniteRecombeeFeed(options: {
       setInitialLoading(false);
       setErr(null);
       loadMoreLock.current = false;
+      isFirstRenderRef.current = false;
       return;
     }
 
+    // 首次 mount 且 cache 命中：直接使用 cache，不發 fetch
+    if (isFirstRenderRef.current && initFromCache) {
+      isFirstRenderRef.current = false;
+      hasMoreRef.current = true;
+      return;
+    }
+    isFirstRenderRef.current = false;
+
+    // resetKey 改變時清除 cache，強制重新 fetch
+    if (cacheKeyRef.current) clearFeedCache(cacheKeyRef.current);
+
+    // 嘗試從 sessionStorage cache 還原（首次 mount 時 initFromCache 已處理，
+    // 但 resetKey 改變時必須清空並重新 fetch，所以這裡直接走 fetch 路徑）
     let cancelled = false;
     feedGenRef.current += 1;
     setErr(null);

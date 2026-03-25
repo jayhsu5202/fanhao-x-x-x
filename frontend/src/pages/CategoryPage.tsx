@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard from "../components/VideoCard";
 import { getNavCategory, getNavSubcategory, isNavCategoryKey } from "../constants/navCategories";
@@ -30,6 +30,7 @@ const CATEGORY_LIMIT = 50;
 
 export default function CategoryPage() {
   const { locale } = useMissavLocale();
+  const { key: locationKey } = useLocation();
   const { category = "", subcategory: subcategoryParam = "" } = useParams<{ category: string; subcategory?: string }>();
   const [searchParams] = useSearchParams();
   const subcategory = (searchParams.get("sub") ?? subcategoryParam ?? "").trim();
@@ -83,6 +84,7 @@ export default function CategoryPage() {
     pageSize: CATEGORY_LIMIT,
     resetKey: `${category}|${subcategory}|${locale}`,
     enabled: valid,
+    cacheKey: locationKey,
     getInitialUrl,
     getMoreUrl,
     initialErrorLabel: "載入失敗",
