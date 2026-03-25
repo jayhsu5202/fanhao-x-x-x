@@ -4,7 +4,10 @@ import { useLocation } from "react-router-dom";
 /**
  * 換頁時的捲動位置管理：
  * - Push 新頁（首次進入）→ 捲回頂端
- * - Pop 返回（瀏覽器上一頁）→ 從 sessionStorage 恢復上次捲動位置
+ * - Pop 返回（瀏覽器上一頁）→ 從 localStorage 恢復上次捲動位置
+ *
+ * 使用 localStorage 而非 sessionStorage，確保 PWA standalone 視窗
+ * 或「加到主畫面」後重新開啟時捲動位置仍然存在。
  *
  * 使用 React Router v6 的 location.key 作為每個歷史條目的唯一識別符。
  */
@@ -13,7 +16,7 @@ export default function ScrollToTop() {
 
   useEffect(() => {
     const storageKey = `scroll_pos_${key}`;
-    const saved = sessionStorage.getItem(storageKey);
+    const saved = localStorage.getItem(storageKey);
 
     if (saved !== null) {
       // 返回此歷史條目：恢復位置
@@ -26,7 +29,7 @@ export default function ScrollToTop() {
 
     // effect 清理時（即將離開此頁）記錄目前位置
     return () => {
-      sessionStorage.setItem(storageKey, String(window.scrollY));
+      localStorage.setItem(storageKey, String(window.scrollY));
     };
   }, [key]);
 

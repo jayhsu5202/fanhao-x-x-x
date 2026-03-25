@@ -646,8 +646,7 @@ export default function VideoPage() {
               <div className="player-wrap player-fanhao player-elevated player-wrap--clickplay">
                 <video
                   ref={videoRef}
-                  controls={playbackStarted}
-                  playsInline
+                  controls
                   poster={posterUrl}
                   preload="none"
                   style={{ display: playbackStarted ? "block" : "none" }}
