@@ -104,6 +104,8 @@ code.inline-code {
   background: rgba(7, 8, 13, 0.88);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--stroke);
+  /* iOS PWA standalone：補頂部安全區，避免狀態列遮住導覽列 */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .site-header--detail {
@@ -2648,6 +2650,10 @@ code.inline-code {
 }
 
 @media (max-width: 480px) {
+  .export-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
   .export-modal-panel {
     max-width: 100%;
     border-radius: 12px 12px 0 0;
@@ -2655,10 +2661,73 @@ code.inline-code {
     bottom: 0;
     left: 0;
     right: 0;
+    /* 限制高度，讓面板不超出視窗 */
+    max-height: 92dvh;
+    max-height: 92vh; /* fallback */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
-  .export-modal-overlay {
-    align-items: flex-end;
-    padding: 0;
+  /* textarea 在手機縮短，節省空間 */
+  .export-modal-textarea {
+    min-height: 120px;
+    max-height: 28vh;
+    font-size: 0.75rem;
+  }
+  /* 底部按鈕列：手機改直排 */
+  .export-modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+  }
+  .export-modal-hint {
+    text-align: center;
+  }
+  .export-modal-copy-btn,
+  .ie-modal-download-btn {
+    width: 100%;
+    text-align: center;
+    padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+  }
+  /* 選擇備份檔按鈕撐滿 */
+  .ie-modal-file-label {
+    width: 100%;
+    justify-content: center;
+    padding: 0.55rem 1rem;
+  }
+  /* hint 區塊字縮小 */
+  .ie-modal-import-hint {
+    font-size: 0.72rem;
+    padding: 0.5rem 1rem;
+  }
+  /* Tab 字型略調 */
+  .ie-modal-tab {
+    font-size: 0.82rem;
+    padding: 0.55rem 0;
+  }
+}
+
+/* ================================================
+   ImportExportModal — 平板（481-768px）微調
+   ================================================ */
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .export-modal-panel {
+    max-width: 92vw;
+  }
+  .export-modal-textarea {
+    min-height: 150px;
+    max-height: 36vh;
+  }
+  .export-modal-actions {
+    flex-wrap: wrap;
+  }
+  .export-modal-copy-btn,
+  .ie-modal-download-btn {
+    flex: 1 1 auto;
+    text-align: center;
   }
 }
 
