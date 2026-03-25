@@ -95,6 +95,9 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
           <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/watch-history">
             觀看記錄
           </NavLink>
+          <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/genres">
+            類型玩法
+          </NavLink>
           {NAV_MENU.map((m, index) => (
             <div
               key={m.key}
@@ -175,6 +178,15 @@ export default function SiteHeader({ tone = "default" }: { tone?: Tone }) {
               onClick={() => setOpen(false)}
             >
               觀看記錄
+            </NavLink>
+
+            <p className="site-nav-mobile-divider-label">探索</p>
+            <NavLink
+              className={({ isActive }) => `site-nav-panel-link${isActive ? " is-active" : ""}`}
+              to="/genres"
+              onClick={() => setOpen(false)}
+            >
+              類型玩法
             </NavLink>
 
             <p className="site-nav-mobile-divider-label">影片分類</p>
