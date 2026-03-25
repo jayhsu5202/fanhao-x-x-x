@@ -37,10 +37,34 @@ export function getWatchHistory(): WatchEntry[] {
   return readRaw().sort((a, b) => b.watchedAt - a.watchedAt);
 }
 
-/** 記錄一次觀看（同 slug 自動更新到最新） */
+/** 記錄一次觀看（同 slug 自動更新到最新，watchedAt = now） */
 export function recordWatch(slug: string, title: string | null): void {
-  const entries = readRaw().filter((e) => e.slug !== slug);
-  entries.unshift({ slug, title, watchedAt: Date.now() });
+  recordWatchAt(slug, title, Date.now());
+}
+
+/**
+ * 記錄一次觀看，可自訂 watchedAt（用於備份還原）。
+ * 同 slug 若已存在，以較新的 watchedAt 覆蓋。
+ */
+export function recordWatchAt(
+  slug: string,
+  title: string | null,
+  watchedAt: number
+): void {
+  const entries = readRaw();
+  const idx = entries.findIndex((e) => e.slug === slug);
+  if (idx >= 0) {
+    // 保留較新的時間戳
+    if (watchedAt > entries[idx].watchedAt) {
+      entries[idx].watchedAt = watchedAt;
+      entries[idx].title = title ?? entries[idx].title;
+    }
+    // 移到最前（維持 by-time 排序語義）
+    const [entry] = entries.splice(idx, 1);
+    entries.unshift(entry);
+  } else {
+    entries.unshift({ slug, title, watchedAt });
+  }
   if (entries.length > MAX_ENTRIES) entries.splice(MAX_ENTRIES);
   writeRaw(entries);
 }

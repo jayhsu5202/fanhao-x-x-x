@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-
-export type ImportResult = {
-  success: number;
-  failed: number;
-  skipped: number;
-};
+import {
+  downloadBackupFile,
+  parseBackup,
+  serializeBackup,
+  type ImportResult,
+  type MissavBackup,
+} from "../lib/backup";
 
 interface ImportExportModalProps {
   title: string;
-  exportText: string;               // 導出內容
-  onImport: (raw: string) => Promise<ImportResult>; // 呼叫者負責實際導入
+  /** 呼叫方提供當前完整備份物件（含 favorites + watchHistory） */
+  backup: MissavBackup;
+  /** 呼叫方執行實際導入，收到解析後的 backup 物件 */
+  onImport: (backup: MissavBackup) => Promise<ImportResult>;
   onClose: () => void;
 }
 
@@ -17,7 +20,7 @@ type Tab = "export" | "import";
 
 export default function ImportExportModal({
   title,
-  exportText,
+  backup,
   onImport,
   onClose,
 }: ImportExportModalProps) {
@@ -28,6 +31,8 @@ export default function ImportExportModal({
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importErr, setImportErr] = useState<string | null>(null);
   const exportTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const exportText = serializeBackup(backup);
 
   // ESC 關閉
   useEffect(() => {
@@ -55,13 +60,18 @@ export default function ImportExportModal({
     }
   }
 
+  function handleDownload() {
+    downloadBackupFile(backup);
+  }
+
   async function handleImport() {
     if (!importText.trim()) return;
     setImporting(true);
     setResult(null);
     setImportErr(null);
     try {
-      const res = await onImport(importText);
+      const parsed = parseBackup(importText);
+      const res = await onImport(parsed);
       setResult(res);
       setImportText("");
     } catch (e) {
@@ -71,7 +81,26 @@ export default function ImportExportModal({
     }
   }
 
-  const exportCount = exportText.split("\n").filter(Boolean).length;
+  /** 從本地 JSON 檔讀入 */
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result;
+      if (typeof text === "string") {
+        setImportText(text);
+        setResult(null);
+        setImportErr(null);
+      }
+    };
+    reader.readAsText(file, "utf-8");
+    // reset input so same file can be re-selected
+    e.target.value = "";
+  }
+
+  const favCount = backup.favorites.length;
+  const watchCount = backup.watchHistory.length;
 
   return (
     <div
@@ -104,20 +133,24 @@ export default function ImportExportModal({
             className={`ie-modal-tab${tab === "export" ? " ie-modal-tab--active" : ""}`}
             onClick={() => setTab("export")}
           >
-            導出
+            ↑ 導出
           </button>
           <button
             type="button"
             className={`ie-modal-tab${tab === "import" ? " ie-modal-tab--active" : ""}`}
             onClick={() => setTab("import")}
           >
-            導入
+            ↓ 導入
           </button>
         </div>
 
-        {/* 導出 Tab */}
+        {/* ── 導出 Tab ── */}
         {tab === "export" && (
           <>
+            <div className="ie-modal-import-hint">
+              備份包含：最愛 <strong>{favCount}</strong> 筆 ＋ 觀看記錄 <strong>{watchCount}</strong> 筆。
+              可複製 JSON 文字，或點「下載備份檔」儲存為 <code className="inline-code">.json</code>。
+            </div>
             <textarea
               ref={exportTextareaRef}
               className="export-modal-textarea"
@@ -126,24 +159,41 @@ export default function ImportExportModal({
               rows={12}
             />
             <div className="export-modal-actions">
-              <span className="export-modal-hint">共 {exportCount} 筆</span>
+              <button
+                type="button"
+                className="ie-modal-download-btn"
+                onClick={handleDownload}
+              >
+                ⬇ 下載備份檔
+              </button>
               <button
                 type="button"
                 className="export-modal-copy-btn"
                 onClick={() => void handleCopy()}
               >
-                {copied ? "✓ 已複製" : "複製全部"}
+                {copied ? "✓ 已複製" : "複製 JSON"}
               </button>
             </div>
           </>
         )}
 
-        {/* 導入 Tab */}
+        {/* ── 導入 Tab ── */}
         {tab === "import" && (
           <>
             <div className="ie-modal-import-hint">
-              每行格式：<code className="inline-code">slug</code> 或{" "}
-              <code className="inline-code">slug[Tab]標題</code>，貼上後按「確認導入」。
+              貼上或載入備份 JSON，然後按「確認導入」。
+              已存在的記錄不會重複寫入（slug 相同則略過）。
+            </div>
+            <div className="ie-modal-file-row">
+              <label className="ie-modal-file-label">
+                📂 選擇備份檔
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="ie-modal-file-input"
+                  onChange={handleFileSelect}
+                />
+              </label>
             </div>
             <textarea
               className="export-modal-textarea ie-modal-import-textarea"
@@ -153,15 +203,18 @@ export default function ImportExportModal({
                 setResult(null);
                 setImportErr(null);
               }}
-              placeholder="貼上要導入的記錄，每行一筆…"
+              placeholder={'貼上備份 JSON…\n{\n  "v": 1,\n  "favorites": [...],\n  "watchHistory": [...]\n}'}
               rows={12}
               disabled={importing}
             />
             {result && (
               <div className="ie-modal-result ie-modal-result--ok">
-                ✓ 成功導入 {result.success} 筆
-                {result.skipped > 0 && `，略過 ${result.skipped} 筆（已存在）`}
-                {result.failed > 0 && `，失敗 ${result.failed} 筆`}
+                ✓ 最愛：成功 {result.favorites.success} 筆
+                {result.favorites.skipped > 0 && `，略過 ${result.favorites.skipped} 筆`}
+                {result.favorites.failed > 0 && `，失敗 ${result.favorites.failed} 筆`}
+                ；觀看記錄：成功 {result.watchHistory.success} 筆
+                {result.watchHistory.skipped > 0 && `，略過 ${result.watchHistory.skipped} 筆`}
+                {result.watchHistory.failed > 0 && `，失敗 ${result.watchHistory.failed} 筆`}
               </div>
             )}
             {importErr && (
@@ -169,7 +222,7 @@ export default function ImportExportModal({
             )}
             <div className="export-modal-actions">
               <span className="export-modal-hint">
-                {importText.split("\n").filter(Boolean).length} 行待導入
+                {importText.trim() ? "JSON 已就緒" : "尚未輸入備份內容"}
               </span>
               <button
                 type="button"
@@ -186,3 +239,5 @@ export default function ImportExportModal({
     </div>
   );
 }
+
+export type { ImportResult };

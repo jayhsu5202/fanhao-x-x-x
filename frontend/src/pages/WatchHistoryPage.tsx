@@ -2,11 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
-import ImportExportModal, { type ImportResult } from "../components/ImportExportModal";
+import ImportExportModal from "../components/ImportExportModal";
+import {
+  buildBackup,
+  buildWatchOnlyBackup,
+  mergeWatchHistory,
+  type ImportResult,
+  type MissavBackup,
+} from "../lib/backup";
+import { apiGet, apiPost } from "../api/client";
 import {
   clearWatchHistory,
   getWatchHistory,
-  recordWatch,
   removeWatch,
   type WatchEntry,
 } from "../lib/watchHistory";
@@ -23,27 +30,16 @@ function formatRelativeTime(ms: number): string {
   return new Date(ms).toLocaleDateString("zh-TW");
 }
 
-/** 解析導入文字 → [{slug, title}] */
-function parseImportLines(raw: string): { slug: string; title: string | null }[] {
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const tabIdx = line.indexOf("\t");
-      if (tabIdx > 0) {
-        return { slug: line.slice(0, tabIdx).trim(), title: line.slice(tabIdx + 1).trim() || null };
-      }
-      return { slug: line, title: null };
-    })
-    .filter(
-      (r) => r.slug.length > 0 && r.slug.length < 512 && !r.slug.includes("..") && !r.slug.includes("/")
-    );
-}
-
 export default function WatchHistoryPage() {
   const [items, setItems] = useState<WatchEntry[]>([]);
   const [showModal, setShowModal] = useState(false);
+  /**
+   * 導出時需要 favorites 資料（從後端取得），
+   * 由 buildCurrentBackup 懶加載並快取。
+   */
+  const [favCache, setFavCache] = useState<
+    { slug: string; title: string | null; createdAt: string }[] | null
+  >(null);
 
   const reload = useCallback(() => {
     setItems(getWatchHistory());
@@ -64,34 +60,71 @@ export default function WatchHistoryPage() {
     reload();
   }
 
-  /** 導出文字：每行 slug<tab>title，由新到舊 */
-  function buildExportText(): string {
-    if (items.length === 0) return "";
-    return items
-      .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
-      .join("\n");
+  /**
+   * 開啟 modal 時拉取後端 favorites，合入備份。
+   * 若已快取則直接使用。
+   */
+  async function openModal() {
+    if (favCache === null) {
+      try {
+        const d = await apiGet<{ items: { slug: string; title: string | null; createdAt: string }[] }>("/api/favorites");
+        setFavCache(d.items ?? []);
+      } catch {
+        setFavCache([]); // 取不到就帶空陣列
+      }
+    }
+    setShowModal(true);
   }
 
-  /** 導入：寫入 localStorage，已存在則跳過（保留原 watchedAt） */
-  async function handleImport(raw: string): Promise<ImportResult> {
-    const lines = parseImportLines(raw);
-    const existing = new Set(items.map((r) => r.slug));
-    let success = 0;
-    let skipped = 0;
-    const failed = 0;
+  /**
+   * 建立完整備份：favorites（後端）+ watchHistory（localStorage）
+   */
+  function buildCurrentBackup(): MissavBackup {
+    if (favCache === null) {
+      return buildWatchOnlyBackup();
+    }
+    return buildBackup(favCache);
+  }
 
-    for (const { slug, title } of lines) {
-      if (existing.has(slug)) {
-        skipped++;
-      } else {
-        // 以「很久以前」的時間戳記錄，不覆蓋最近記錄
-        recordWatch(slug, title);
-        success++;
+  /**
+   * 導入備份：
+   * 1. favorites → POST /api/favorites（upsert）
+   * 2. watchHistory → mergeWatchHistory（localStorage，slug 已存在略過）
+   */
+  async function handleImport(backup: MissavBackup): Promise<ImportResult> {
+    // ── favorites ──
+    const existingSlugs = new Set((favCache ?? []).map((r) => r.slug));
+    let favSuccess = 0;
+    let favSkipped = 0;
+    let favFailed = 0;
+
+    for (const fav of backup.favorites) {
+      try {
+        await apiPost("/api/favorites", { slug: fav.slug, title: fav.title });
+        if (existingSlugs.has(fav.slug)) {
+          favSkipped++;
+        } else {
+          favSuccess++;
+        }
+      } catch {
+        favFailed++;
       }
     }
 
+    // ── watchHistory ──
+    const wh = mergeWatchHistory(backup.watchHistory);
     reload();
-    return { success, failed, skipped };
+
+    // 更新 favCache（使下次導出反映最新狀態）
+    try {
+      const d = await apiGet<{ items: { slug: string; title: string | null; createdAt: string }[] }>("/api/favorites");
+      setFavCache(d.items ?? []);
+    } catch { /* 靜默 */ }
+
+    return {
+      favorites: { success: favSuccess, skipped: favSkipped, failed: favFailed },
+      watchHistory: wh,
+    };
   }
 
   return (
@@ -108,15 +141,15 @@ export default function WatchHistoryPage() {
           <h1 className="home-section-title" style={{ margin: 0 }}>
             觀看記錄
           </h1>
-          {/* 導出/導入按鈕：marginLeft auto 推到右側，清除按鈕在其右邊 */}
+          {/* 備份/還原按鈕在清除按鈕左邊 */}
           <button
             type="button"
             className="export-trigger-btn"
             style={{ marginLeft: "auto" }}
-            onClick={() => setShowModal(true)}
-            title="導出 / 導入觀看記錄"
+            onClick={() => void openModal()}
+            title="導出 / 導入備份"
           >
-            ↑↓ 導出 / 導入
+            ↑↓ 備份 / 還原
           </button>
           {items.length > 0 && (
             <button
@@ -171,8 +204,8 @@ export default function WatchHistoryPage() {
 
       {showModal && (
         <ImportExportModal
-          title="觀看記錄 — 導出 / 導入"
-          exportText={buildExportText()}
+          title="備份 / 還原 — 最愛 & 觀看記錄"
+          backup={buildCurrentBackup()}
           onImport={handleImport}
           onClose={() => setShowModal(false)}
         />

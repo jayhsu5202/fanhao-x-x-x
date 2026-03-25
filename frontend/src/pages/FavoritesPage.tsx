@@ -3,25 +3,16 @@ import { Link } from "react-router-dom";
 import { apiDelete, apiGet, apiPost } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
-import ImportExportModal, { type ImportResult } from "../components/ImportExportModal";
+import ImportExportModal from "../components/ImportExportModal";
+import {
+  buildBackup,
+  mergeWatchHistory,
+  parseBackup,
+  type ImportResult,
+  type MissavBackup,
+} from "../lib/backup";
 
 type FavRow = { slug: string; title: string | null; createdAt: string };
-
-/** 解析導入文字 → [{slug, title}] */
-function parseImportLines(raw: string): { slug: string; title: string | null }[] {
-  return raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const tabIdx = line.indexOf("\t");
-      if (tabIdx > 0) {
-        return { slug: line.slice(0, tabIdx).trim(), title: line.slice(tabIdx + 1).trim() || null };
-      }
-      return { slug: line, title: null };
-    })
-    .filter((r) => r.slug.length > 0 && r.slug.length < 512 && !r.slug.includes("..") && !r.slug.includes("/"));
-}
 
 export default function FavoritesPage() {
   const [items, setItems] = useState<FavRow[] | null>(null);
@@ -52,36 +43,49 @@ export default function FavoritesPage() {
     }
   }
 
-  /** 導出文字：每行 slug<tab>title */
-  function buildExportText(): string {
-    if (!items || items.length === 0) return "";
-    return items
-      .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
-      .join("\n");
+  /**
+   * 建立備份：包含後端 favorites + localStorage watchHistory
+   * items 可能為 null（載入中），此時 favorites 為空陣列。
+   */
+  function buildCurrentBackup(): MissavBackup {
+    return buildBackup(items ?? []);
   }
 
-  /** 導入：逐筆呼叫 POST /api/favorites */
-  async function handleImport(raw: string): Promise<ImportResult> {
-    const lines = parseImportLines(raw);
-    let success = 0;
-    let failed = 0;
-    const skipped = 0;
-    const existing = new Set((items ?? []).map((r) => r.slug));
+  /**
+   * 導入備份：
+   * 1. favorites → 逐筆 POST /api/favorites（upsert）
+   * 2. watchHistory → mergeWatchHistory（寫入 localStorage，slug 已存在則略過）
+   */
+  async function handleImport(backup: MissavBackup): Promise<ImportResult> {
+    // ── favorites ──
+    const existingSlugs = new Set((items ?? []).map((r) => r.slug));
+    let favSuccess = 0;
+    let favSkipped = 0;
+    let favFailed = 0;
 
-    for (const { slug, title } of lines) {
-      // 已存在的也 upsert（後端會更新 title），不算 skipped
+    for (const fav of backup.favorites) {
       try {
-        await apiPost("/api/favorites", { slug, title });
-        if (!existing.has(slug)) success++;
-        else success++; // upsert 成功
+        await apiPost("/api/favorites", { slug: fav.slug, title: fav.title });
+        if (existingSlugs.has(fav.slug)) {
+          favSkipped++;
+        } else {
+          favSuccess++;
+        }
       } catch {
-        failed++;
+        favFailed++;
       }
     }
 
-    // 重新載入清單
+    // ── watchHistory ──
+    const wh = mergeWatchHistory(backup.watchHistory);
+
+    // 重新載入 favorites 清單
     await load();
-    return { success, failed, skipped };
+
+    return {
+      favorites: { success: favSuccess, skipped: favSkipped, failed: favFailed },
+      watchHistory: wh,
+    };
   }
 
   return (
@@ -94,7 +98,7 @@ export default function FavoritesPage() {
           <span className="detail-breadcrumb-current">我的最愛</span>
         </nav>
 
-        {/* 標題列：標題 + 導出/導入按鈕 */}
+        {/* 標題列 */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
           <h1 className="home-section-title" style={{ margin: 0 }}>
             我的最愛
@@ -103,9 +107,9 @@ export default function FavoritesPage() {
             type="button"
             className="export-trigger-btn"
             onClick={() => setShowModal(true)}
-            title="導出 / 導入我的最愛"
+            title="導出 / 導入備份"
           >
-            ↑↓ 導出 / 導入
+            ↑↓ 備份 / 還原
           </button>
         </div>
 
@@ -151,8 +155,8 @@ export default function FavoritesPage() {
 
       {showModal && (
         <ImportExportModal
-          title="我的最愛 — 導出 / 導入"
-          exportText={buildExportText()}
+          title="備份 / 還原 — 最愛 & 觀看記錄"
+          backup={buildCurrentBackup()}
           onImport={handleImport}
           onClose={() => setShowModal(false)}
         />
