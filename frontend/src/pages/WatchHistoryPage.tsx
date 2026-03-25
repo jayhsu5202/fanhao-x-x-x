@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
-import ExportModal from "../components/ExportModal";
+import ImportExportModal, { type ImportResult } from "../components/ImportExportModal";
 import {
   clearWatchHistory,
   getWatchHistory,
+  recordWatch,
   removeWatch,
   type WatchEntry,
 } from "../lib/watchHistory";
@@ -22,9 +23,27 @@ function formatRelativeTime(ms: number): string {
   return new Date(ms).toLocaleDateString("zh-TW");
 }
 
+/** 解析導入文字 → [{slug, title}] */
+function parseImportLines(raw: string): { slug: string; title: string | null }[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const tabIdx = line.indexOf("\t");
+      if (tabIdx > 0) {
+        return { slug: line.slice(0, tabIdx).trim(), title: line.slice(tabIdx + 1).trim() || null };
+      }
+      return { slug: line, title: null };
+    })
+    .filter(
+      (r) => r.slug.length > 0 && r.slug.length < 512 && !r.slug.includes("..") && !r.slug.includes("/")
+    );
+}
+
 export default function WatchHistoryPage() {
   const [items, setItems] = useState<WatchEntry[]>([]);
-  const [showExport, setShowExport] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const reload = useCallback(() => {
     setItems(getWatchHistory());
@@ -45,12 +64,34 @@ export default function WatchHistoryPage() {
     reload();
   }
 
-  /** 產生導出文字：每行 slug（或 slug + tab + title） */
+  /** 導出文字：每行 slug<tab>title，由新到舊 */
   function buildExportText(): string {
     if (items.length === 0) return "";
     return items
       .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
       .join("\n");
+  }
+
+  /** 導入：寫入 localStorage，已存在則跳過（保留原 watchedAt） */
+  async function handleImport(raw: string): Promise<ImportResult> {
+    const lines = parseImportLines(raw);
+    const existing = new Set(items.map((r) => r.slug));
+    let success = 0;
+    let skipped = 0;
+    const failed = 0;
+
+    for (const { slug, title } of lines) {
+      if (existing.has(slug)) {
+        skipped++;
+      } else {
+        // 以「很久以前」的時間戳記錄，不覆蓋最近記錄
+        recordWatch(slug, title);
+        success++;
+      }
+    }
+
+    reload();
+    return { success, failed, skipped };
   }
 
   return (
@@ -63,31 +104,29 @@ export default function WatchHistoryPage() {
           <span className="detail-breadcrumb-current">觀看記錄</span>
         </nav>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
           <h1 className="home-section-title" style={{ margin: 0 }}>
             觀看記錄
           </h1>
+          {/* 導出/導入按鈕：marginLeft auto 推到右側，清除按鈕在其右邊 */}
+          <button
+            type="button"
+            className="export-trigger-btn"
+            style={{ marginLeft: "auto" }}
+            onClick={() => setShowModal(true)}
+            title="導出 / 導入觀看記錄"
+          >
+            ↑↓ 導出 / 導入
+          </button>
           {items.length > 0 && (
-            <>
-              {/* 導出按鈕：在清除按鈕左邊 */}
-              <button
-                type="button"
-                className="export-trigger-btn"
-                style={{ marginLeft: "auto" }}
-                onClick={() => setShowExport(true)}
-                title="導出觀看記錄"
-              >
-                ↑ 導出
-              </button>
-              <button
-                type="button"
-                className="btn-secondary-fanhao"
-                style={{ width: "auto", marginTop: 0 }}
-                onClick={handleClear}
-              >
-                清除記錄
-              </button>
-            </>
+            <button
+              type="button"
+              className="btn-secondary-fanhao"
+              style={{ width: "auto", marginTop: 0 }}
+              onClick={handleClear}
+            >
+              清除記錄
+            </button>
           )}
         </div>
 
@@ -130,11 +169,12 @@ export default function WatchHistoryPage() {
         )}
       </main>
 
-      {showExport && (
-        <ExportModal
-          title="導出觀看記錄"
-          text={buildExportText()}
-          onClose={() => setShowExport(false)}
+      {showModal && (
+        <ImportExportModal
+          title="觀看記錄 — 導出 / 導入"
+          exportText={buildExportText()}
+          onImport={handleImport}
+          onClose={() => setShowModal(false)}
         />
       )}
     </div>

@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiDelete, apiGet } from "../api/client";
+import { apiDelete, apiGet, apiPost } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
-import ExportModal from "../components/ExportModal";
+import ImportExportModal, { type ImportResult } from "../components/ImportExportModal";
 
 type FavRow = { slug: string; title: string | null; createdAt: string };
+
+/** 解析導入文字 → [{slug, title}] */
+function parseImportLines(raw: string): { slug: string; title: string | null }[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const tabIdx = line.indexOf("\t");
+      if (tabIdx > 0) {
+        return { slug: line.slice(0, tabIdx).trim(), title: line.slice(tabIdx + 1).trim() || null };
+      }
+      return { slug: line, title: null };
+    })
+    .filter((r) => r.slug.length > 0 && r.slug.length < 512 && !r.slug.includes("..") && !r.slug.includes("/"));
+}
 
 export default function FavoritesPage() {
   const [items, setItems] = useState<FavRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [showExport, setShowExport] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -36,12 +52,36 @@ export default function FavoritesPage() {
     }
   }
 
-  /** 產生導出文字：每行 slug（或 slug + tab + title） */
+  /** 導出文字：每行 slug<tab>title */
   function buildExportText(): string {
     if (!items || items.length === 0) return "";
     return items
       .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
       .join("\n");
+  }
+
+  /** 導入：逐筆呼叫 POST /api/favorites */
+  async function handleImport(raw: string): Promise<ImportResult> {
+    const lines = parseImportLines(raw);
+    let success = 0;
+    let failed = 0;
+    const skipped = 0;
+    const existing = new Set((items ?? []).map((r) => r.slug));
+
+    for (const { slug, title } of lines) {
+      // 已存在的也 upsert（後端會更新 title），不算 skipped
+      try {
+        await apiPost("/api/favorites", { slug, title });
+        if (!existing.has(slug)) success++;
+        else success++; // upsert 成功
+      } catch {
+        failed++;
+      }
+    }
+
+    // 重新載入清單
+    await load();
+    return { success, failed, skipped };
   }
 
   return (
@@ -54,21 +94,19 @@ export default function FavoritesPage() {
           <span className="detail-breadcrumb-current">我的最愛</span>
         </nav>
 
-        {/* 標題列：標題 + 導出按鈕 */}
+        {/* 標題列：標題 + 導出/導入按鈕 */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
           <h1 className="home-section-title" style={{ margin: 0 }}>
             我的最愛
           </h1>
-          {items && items.length > 0 && (
-            <button
-              type="button"
-              className="export-trigger-btn"
-              onClick={() => setShowExport(true)}
-              title="導出我的最愛清單"
-            >
-              ↑ 導出
-            </button>
-          )}
+          <button
+            type="button"
+            className="export-trigger-btn"
+            onClick={() => setShowModal(true)}
+            title="導出 / 導入我的最愛"
+          >
+            ↑↓ 導出 / 導入
+          </button>
         </div>
 
         {err ? <p className="msg-error">{err}</p> : null}
@@ -111,11 +149,12 @@ export default function FavoritesPage() {
         ) : null}
       </main>
 
-      {showExport && (
-        <ExportModal
-          title="導出我的最愛"
-          text={buildExportText()}
-          onClose={() => setShowExport(false)}
+      {showModal && (
+        <ImportExportModal
+          title="我的最愛 — 導出 / 導入"
+          exportText={buildExportText()}
+          onImport={handleImport}
+          onClose={() => setShowModal(false)}
         />
       )}
     </div>

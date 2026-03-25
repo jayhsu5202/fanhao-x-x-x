@@ -2661,3 +2661,64 @@ code.inline-code {
     padding: 0;
   }
 }
+
+/* ================================================
+   ImportExportModal — Tab 切換、導入區塊補充樣式
+   ================================================ */
+
+.ie-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--stroke, rgba(240,232,210,0.1));
+}
+
+.ie-modal-tab {
+  flex: 1;
+  padding: 0.6rem 0;
+  background: none;
+  border: none;
+  color: var(--muted, rgba(242,235,224,0.52));
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-bottom 0.15s;
+  border-bottom: 2px solid transparent;
+  letter-spacing: 0.03em;
+}
+
+.ie-modal-tab:hover {
+  color: var(--text, #f2ebe0);
+}
+
+.ie-modal-tab--active {
+  color: var(--accent, #e8c547);
+  border-bottom: 2px solid var(--accent, #e8c547);
+}
+
+.ie-modal-import-hint {
+  padding: 0.65rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--muted, rgba(242,235,224,0.52));
+  border-bottom: 1px solid var(--stroke, rgba(240,232,210,0.08));
+  line-height: 1.6;
+}
+
+.ie-modal-import-textarea {
+  /* 可編輯樣式覆蓋：顯示游標 */
+  cursor: text;
+}
+
+.ie-modal-result {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--stroke, rgba(240,232,210,0.08));
+}
+
+.ie-modal-result--ok {
+  color: #7ee8a2;
+}
+
+.ie-modal-result--err {
+  color: var(--danger, #f08070);
+}
