@@ -650,7 +650,7 @@ export default function VideoPage() {
                   playsInline
                   poster={posterUrl}
                   preload="none"
-                  style={{ display: playbackStarted ? "block" : "none" }}
+                  className={playbackStarted ? undefined : "player-video--hidden"}
                 />
                 {!playbackStarted ? (
                   <button
@@ -660,7 +660,6 @@ export default function VideoPage() {
                       const el = videoRef.current;
                       const raw = data?.m3u8_play_url;
                       if (!el || !raw) return;
-                      el.style.display = "block";
                       attachStreamAndPlayFromUserGesture(el, resolveMediaUrl(raw));
                       setPlaybackStarted(true);
                     }}

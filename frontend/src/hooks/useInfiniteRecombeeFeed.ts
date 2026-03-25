@@ -86,15 +86,30 @@ export function useInfiniteRecombeeFeed(options: {
   onInitialResponseRef.current = onInitialResponse;
 
   // 若 cacheKey 存在且 cache 命中，直接從 cache 還原（跳過首次 fetch）
-  const initFromCache = cacheKey ? readFeedCache(cacheKey) : null;
-
-  const [items, setItems] = useState<RecommItem[]>(initFromCache?.items ?? []);
-  const [recommId, setRecommId] = useState<string | null>(initFromCache?.recommId ?? null);
-  const [initialLoading, setInitialLoading] = useState(!initFromCache);
+  // 使用 lazy initializer，只在首次 mount 時讀取一次，避免每次 render 重讀 localStorage
+  const [items, setItems] = useState<RecommItem[]>(() => {
+    if (!cacheKey) return [];
+    return readFeedCache(cacheKey)?.items ?? [];
+  });
+  const [recommId, setRecommId] = useState<string | null>(() => {
+    if (!cacheKey) return null;
+    return readFeedCache(cacheKey)?.recommId ?? null;
+  });
+  const [initialLoading, setInitialLoading] = useState<boolean>(() => {
+    if (!cacheKey) return true;
+    return readFeedCache(cacheKey) === null;
+  });
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [canRecommendNext, setCanRecommendNext] = useState(initFromCache ? Boolean(initFromCache.recommId) : false);
+  const [canRecommendNext, setCanRecommendNext] = useState<boolean>(() => {
+    if (!cacheKey) return false;
+    const c = readFeedCache(cacheKey);
+    return c ? Boolean(c.recommId) : false;
+  });
   const [feedHasMore, setFeedHasMore] = useState(true);
+
+  // initFromCache 供 isFirstRenderRef effect 使用（只讀一次）
+  const initFromCache = useRef(cacheKey ? readFeedCache(cacheKey) : null);
 
   const loadMoreLock = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -146,7 +161,7 @@ export function useInfiniteRecombeeFeed(options: {
     }
 
     // 首次 mount 且 cache 命中：直接使用 cache，不發 fetch
-    if (isFirstRenderRef.current && initFromCache) {
+    if (isFirstRenderRef.current && initFromCache.current) {
       isFirstRenderRef.current = false;
       hasMoreRef.current = true;
       return;
@@ -156,8 +171,7 @@ export function useInfiniteRecombeeFeed(options: {
     // resetKey 改變時清除 cache，強制重新 fetch
     if (cacheKeyRef.current) clearFeedCache(cacheKeyRef.current);
 
-    // 嘗試從 sessionStorage cache 還原（首次 mount 時 initFromCache 已處理，
-    // 但 resetKey 改變時必須清空並重新 fetch，所以這裡直接走 fetch 路徑）
+    // resetKey 改變時必須清空並重新 fetch
     let cancelled = false;
     feedGenRef.current += 1;
     setErr(null);

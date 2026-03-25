@@ -1754,6 +1754,13 @@ code.inline-code {
   object-fit: cover;
 }
 
+/* 播放前以 visibility 隱藏 video，讓元素仍在 DOM 中（iOS PiP 需要元素存在） */
+.player-wrap video.player-video--hidden {
+  visibility: hidden;
+  position: absolute;
+  pointer-events: none;
+}
+
 .player-wrap--clickplay {
   position: relative;
 }

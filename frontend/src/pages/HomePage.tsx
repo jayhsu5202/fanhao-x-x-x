@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { stableCacheKey } from "../lib/feedCache";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard from "../components/VideoCard";
 import { useMissavLocale } from "../context/MissavLocaleContext";
@@ -9,7 +10,8 @@ const PAGE_SIZE = 48;
 
 export default function HomePage() {
   const { locale } = useMissavLocale();
-  const { key: locationKey } = useLocation();
+  const { pathname, search } = useLocation();
+  const feedCacheKey = stableCacheKey(pathname + search);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [q, setQ] = useState("");
@@ -28,7 +30,7 @@ export default function HomePage() {
   const { items, initialLoading, loadingMore, err: featErr, sentinelRef, feedHasMore } = useInfiniteRecombeeFeed({
     pageSize: PAGE_SIZE,
     resetKey: locale,
-    cacheKey: locationKey,
+    cacheKey: feedCacheKey,
     getInitialUrl,
     getMoreUrl,
     initialErrorLabel: "推薦載入失敗",
