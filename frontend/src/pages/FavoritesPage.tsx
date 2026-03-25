@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { apiDelete, apiGet } from "../api/client";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
+import ExportModal from "../components/ExportModal";
 
 type FavRow = { slug: string; title: string | null; createdAt: string };
 
 export default function FavoritesPage() {
   const [items, setItems] = useState<FavRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [showExport, setShowExport] = useState(false);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -34,6 +36,14 @@ export default function FavoritesPage() {
     }
   }
 
+  /** 產生導出文字：每行 slug（或 slug + tab + title） */
+  function buildExportText(): string {
+    if (!items || items.length === 0) return "";
+    return items
+      .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
+      .join("\n");
+  }
+
   return (
     <div className="page-shell favorites-page">
       <SiteHeader />
@@ -43,9 +53,24 @@ export default function FavoritesPage() {
           <span aria-hidden> / </span>
           <span className="detail-breadcrumb-current">我的最愛</span>
         </nav>
-        <h1 className="home-section-title" style={{ marginBottom: "0.75rem" }}>
-          我的最愛
-        </h1>
+
+        {/* 標題列：標題 + 導出按鈕 */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
+          <h1 className="home-section-title" style={{ margin: 0 }}>
+            我的最愛
+          </h1>
+          {items && items.length > 0 && (
+            <button
+              type="button"
+              className="export-trigger-btn"
+              onClick={() => setShowExport(true)}
+              title="導出我的最愛清單"
+            >
+              ↑ 導出
+            </button>
+          )}
+        </div>
+
         {err ? <p className="msg-error">{err}</p> : null}
         {items === null && !err ? (
           <div className="featured-matrix featured-matrix--home">
@@ -85,6 +110,14 @@ export default function FavoritesPage() {
           </div>
         ) : null}
       </main>
+
+      {showExport && (
+        <ExportModal
+          title="導出我的最愛"
+          text={buildExportText()}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }

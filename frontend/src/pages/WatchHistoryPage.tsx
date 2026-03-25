@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import VideoCard, { type RecommItem } from "../components/VideoCard";
+import ExportModal from "../components/ExportModal";
 import {
   clearWatchHistory,
   getWatchHistory,
@@ -23,6 +24,7 @@ function formatRelativeTime(ms: number): string {
 
 export default function WatchHistoryPage() {
   const [items, setItems] = useState<WatchEntry[]>([]);
+  const [showExport, setShowExport] = useState(false);
 
   const reload = useCallback(() => {
     setItems(getWatchHistory());
@@ -43,6 +45,14 @@ export default function WatchHistoryPage() {
     reload();
   }
 
+  /** 產生導出文字：每行 slug（或 slug + tab + title） */
+  function buildExportText(): string {
+    if (items.length === 0) return "";
+    return items
+      .map((r) => (r.title ? `${r.slug}\t${r.title}` : r.slug))
+      .join("\n");
+  }
+
   return (
     <div className="page-shell favorites-page">
       <SiteHeader />
@@ -58,19 +68,31 @@ export default function WatchHistoryPage() {
             觀看記錄
           </h1>
           {items.length > 0 && (
-            <button
-              type="button"
-              className="btn-secondary-fanhao"
-              style={{ marginLeft: "auto", width: "auto", marginTop: 0 }}
-              onClick={handleClear}
-            >
-              清空全部
-            </button>
+            <>
+              {/* 導出按鈕：在清除按鈕左邊 */}
+              <button
+                type="button"
+                className="export-trigger-btn"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setShowExport(true)}
+                title="導出觀看記錄"
+              >
+                ↑ 導出
+              </button>
+              <button
+                type="button"
+                className="btn-secondary-fanhao"
+                style={{ width: "auto", marginTop: 0 }}
+                onClick={handleClear}
+              >
+                清除記錄
+              </button>
+            </>
           )}
         </div>
 
         {items.length === 0 ? (
-          <p className="msg-muted">尚無觀看記錄，開啟任何影片後即會自動記錄。</p>
+          <p className="msg-muted">無觀看記錄，開啟任何影片後即會自動記錄。</p>
         ) : (
           <div className="featured-matrix featured-matrix--home">
             {items.map((row) => {
@@ -107,6 +129,14 @@ export default function WatchHistoryPage() {
           </div>
         )}
       </main>
+
+      {showExport && (
+        <ExportModal
+          title="導出觀看記錄"
+          text={buildExportText()}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }
